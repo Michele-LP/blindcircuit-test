@@ -3,526 +3,165 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multiplayer – Test P2P</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0d1117;
-      color: #e6edf3;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    /* ── Schermate ───────────────────────────────────── */
-    .screen { display: none; flex-direction: column; align-items: center; gap: 22px; }
-    .screen.active { display: flex; }
-
-    /* ── Testo ───────────────────────────────────────── */
-    .title    { font-size: 1.9rem; font-weight: 700; }
-    .subtitle { color: #8b949e; font-size: 0.95rem; text-align: center; }
-
-    /* ── Bottoni ─────────────────────────────────────── */
-    .btn {
-      padding: 11px 26px;
-      font-size: 0.97rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-    }
-    .btn:hover  { opacity: 0.85; }
-    .btn:active { transform: scale(0.97); }
-    .btn-blue { background: #1f6feb; color: white; }
-    .btn-gray { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
-    .btn-row  { display: flex; gap: 10px; }
-
-    /* ── Codice ──────────────────────────────────────── */
-    .code-box {
-      background: #161b22;
-      border: 2px solid #30363d;
-      border-radius: 12px;
-      padding: 18px 44px;
-      font-family: 'Courier New', monospace;
-      font-size: 3rem;
-      font-weight: 700;
-      letter-spacing: 0.28em;
-      color: #e3b341;
-      user-select: all;
-    }
-
-    /* ── Input codice ────────────────────────────────── */
-    .code-input {
-      background: #161b22;
-      border: 2px solid #30363d;
-      border-radius: 8px;
-      padding: 12px 18px;
-      font-family: 'Courier New', monospace;
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: 0.22em;
-      color: #e3b341;
-      text-align: center;
-      width: 215px;
-      text-transform: uppercase;
-      transition: border-color 0.15s;
-    }
-    .code-input:focus { outline: none; border-color: #1f6feb; }
-
-    /* ── Status ──────────────────────────────────────── */
-    .status     { font-size: 0.88rem; min-height: 1.3em; color: #8b949e; }
-    .status.ok  { color: #3fb950; }
-    .status.err { color: #f85149; }
-
-    /* ── HUD partita ─────────────────────────────────── */
-    .hud {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      font-size: 0.88rem;
-      color: #8b949e;
-    }
-    .player-tag {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .swatch {
-      width: 13px; height: 13px;
-      border-radius: 3px;
-      flex-shrink: 0;
-    }
-
-    /* ── Canvas ──────────────────────────────────────── */
-    canvas {
-      display: block;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-    }
-
-    .hint { color: #484f58; font-size: 0.8rem; }
-  </style>
+  <title>RoboRally</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-<!-- ──────────────────────────────────────────────────── -->
-<!--  MENU                                               -->
-<!-- ──────────────────────────────────────────────────── -->
-<div id="scr-menu" class="screen active">
-  <div class="title">🤖 Multiplayer Test</div>
-  <div class="subtitle">
-    Proof-of-concept WebRTC P2P tra browser.<br>
-    Senza server, solo un codice da condividere.
-  </div>
-  <div class="btn-row">
-    <button class="btn btn-blue" onclick="UI.showCreate()">Crea partita</button>
-    <button class="btn btn-gray" onclick="UI.showJoin()">Entra in partita</button>
-  </div>
-</div>
-
-<!-- ──────────────────────────────────────────────────── -->
-<!--  HOST – IN ATTESA                                   -->
-<!-- ──────────────────────────────────────────────────── -->
-<div id="scr-host" class="screen">
-  <div class="subtitle">Condividi questo codice con il tuo amico</div>
-  <div class="code-box" id="el-code">· · · · · ·</div>
-  <div class="status" id="el-host-status">Connessione al server di signaling…</div>
-  <button class="btn btn-gray" onclick="UI.back()">← Indietro</button>
-</div>
-
-<!-- ──────────────────────────────────────────────────── -->
-<!--  JOIN                                               -->
-<!-- ──────────────────────────────────────────────────── -->
-<div id="scr-join" class="screen">
-  <div class="subtitle">Inserisci il codice della partita</div>
-  <input id="el-join-input" class="code-input" type="text" maxlength="6"
-    placeholder="ABC123"
-    oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')" />
-  <div class="btn-row">
-    <button class="btn btn-blue" onclick="Net.join()">Entra</button>
-    <button class="btn btn-gray" onclick="UI.back()">← Indietro</button>
-  </div>
-  <div class="status" id="el-join-status"></div>
-</div>
-
-<!-- ──────────────────────────────────────────────────── -->
-<!--  GIOCO                                              -->
-<!-- ──────────────────────────────────────────────────── -->
-<div id="scr-game" class="screen">
-  <div class="hud">
-    <div class="player-tag">
-      <div class="swatch" id="el-my-swatch"></div>
-      <span id="el-my-label">Tu</span>
+  <!-- ── MENU ──────────────────────────────────────────────────────────── -->
+  <div id="scr-menu" class="screen active">
+    <div class="title">🤖 RoboRally</div>
+    <div class="subtitle">Versione digitale per amici — nessun server richiesto</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-create">Crea partita</button>
+      <button class="btn btn-secondary" id="btn-show-join">Entra in partita</button>
     </div>
-    <div class="player-tag">
-      <div class="swatch" id="el-other-swatch" style="background:#8b949e"></div>
-      <span id="el-other-label">Amico (in attesa…)</span>
-    </div>
-    <span id="el-conn-status" style="margin-left:6px">🟢 Connesso</span>
+    <div class="status" id="menu-status"></div>
   </div>
-  <canvas id="canvas" width="600" height="400"></canvas>
-  <div class="hint">← ↑ ↓ → per muovere il tuo robot</div>
-</div>
 
-<!-- ──────────────────────────────────────────────────── -->
-<!--  PEERJS (CDN)                                       -->
-<!-- ──────────────────────────────────────────────────── -->
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- ── JOIN ──────────────────────────────────────────────────────────── -->
+  <div id="scr-join" class="screen">
+    <div class="subtitle">Inserisci il codice della partita</div>
+    <input id="join-input" class="code-input" type="text"
+      maxlength="6" placeholder="ABC123"
+      oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')" />
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-do-join">Entra</button>
+      <button class="btn btn-secondary" id="btn-back-join">← Indietro</button>
+    </div>
+    <div class="status" id="join-status"></div>
+  </div>
 
-<script>
-'use strict';
+  <!-- ── LOBBY ─────────────────────────────────────────────────────────── -->
+  <div id="scr-lobby" class="screen">
 
-// ═══════════════════════════════════════════════════════
-//  COSTANTI
-// ═══════════════════════════════════════════════════════
+    <div class="lobby-header">
+      <h2>Lobby</h2>
+      <div class="room-code-widget">
+        <span class="room-code-label">Codice:</span>
+        <span class="room-code-value" id="lobby-code">------</span>
+        <button class="btn-icon" id="btn-copy-code" title="Copia codice">📋</button>
+      </div>
+    </div>
 
-const PREFIX = 'rr-test-';   // prefisso peer ID per evitare collisioni sul server PeerJS
-const SPEED  = 3;             // pixel per frame
-const SZ     = 36;            // dimensione sprite in pixel
-const CW     = 600;           // larghezza canvas
-const CH     = 400;           // altezza canvas
-const CELL   = 40;            // dimensione cella griglia
+    <div class="lobby-body">
+      <!-- Lista giocatori -->
+      <div>
+        <div class="section-label">Giocatori</div>
+        <div class="player-list" id="player-list"></div>
+      </div>
 
-const COLOR_HOST  = '#1f6feb'; // blu  – host
-const COLOR_GUEST = '#f0883e'; // arancione – guest
+      <!-- Setup personale -->
+      <div class="my-setup">
+        <div class="setup-field">
+          <label for="nickname-input">Nickname</label>
+          <input id="nickname-input" class="text-input" type="text"
+            maxlength="16" placeholder="Il tuo nome" />
+        </div>
+        <div class="setup-field">
+          <label>Personaggio</label>
+          <div class="character-grid" id="character-grid"></div>
+        </div>
+        <button class="btn btn-ready" id="btn-ready">
+          <span id="ready-text">Non pronto</span>
+        </button>
+      </div>
+    </div>
 
+    <div class="lobby-footer">
+      <button class="btn btn-secondary" id="btn-leave">← Esci</button>
+      <div class="lobby-status" id="lobby-status"></div>
+      <button class="btn btn-primary" id="btn-start" style="display:none" disabled>
+        Inizia partita →
+      </button>
+    </div>
 
-// ═══════════════════════════════════════════════════════
-//  STATO
-// ═══════════════════════════════════════════════════════
+  </div>
 
-let peer       = null;   // istanza PeerJS locale
-let conn       = null;   // connessione con l'altro giocatore
-let myId       = null;   // chiave del mio giocatore in `players`
-let isHost     = false;
-let gameActive = false;
+  <!-- ── GAME ──────────────────────────────────────────────────────────── -->
+  <div id="scr-game" class="screen">
+    <div class="game-top-bar">
+      <div class="game-hud" id="game-hud"></div>
+      <div class="room-code-widget small">
+        <span class="room-code-label">Codice:</span>
+        <span class="room-code-value small" id="game-code">------</span>
+        <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
+      </div>
+    </div>
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <div class="hint">← ↑ ↓ → per muovere il tuo robot &nbsp;|&nbsp; <em>Fase 2: griglia e carte in arrivo</em></div>
+  </div>
 
-// Dizionario giocatori: chiave = myId oppure 'other'
-// Ogni entry: { x, y, color, label }
-const players = {};
+  <!-- ── SCRIPTS (ordine fondamentale) ─────────────────────────────────── -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/lobby.js"></script>
+  <script src="js/game.js"></script>
 
-// Stato tasti freccia
-const keys = {};
+  <!-- ── WIRING EVENTI ─────────────────────────────────────────────────── -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
 
-
-// ═══════════════════════════════════════════════════════
-//  UI – gestione schermate
-// ═══════════════════════════════════════════════════════
-
-const UI = {
-
-  show(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('scr-' + id).classList.add('active');
-  },
-
-  showCreate() {
-    this.show('host');
-    Net.createRoom();
-  },
-
-  showJoin() {
-    this.show('join');
-  },
-
-  back() {
-    // Pulisce tutto e torna al menu
-    if (peer) { peer.destroy(); peer = null; }
-    conn       = null;
-    gameActive = false;
-    Object.keys(players).forEach(k => delete players[k]);
-    this.show('menu');
-  },
-
-  setHostStatus(msg, type = '') {
-    const el = document.getElementById('el-host-status');
-    el.textContent = msg;
-    el.className   = 'status ' + type;
-  },
-
-  setJoinStatus(msg, type = '') {
-    const el = document.getElementById('el-join-status');
-    el.textContent = msg;
-    el.className   = 'status ' + type;
-  }
-};
-
-
-// ═══════════════════════════════════════════════════════
-//  NETWORK – PeerJS / WebRTC
-// ═══════════════════════════════════════════════════════
-
-const Net = {
-
-  // Genera un codice di 6 caratteri senza lettere ambigue (0/O, 1/I)
-  _genCode() {
-    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let s = '';
-    for (let i = 0; i < 6; i++) s += abc[Math.floor(Math.random() * abc.length)];
-    return s;
-  },
-
-  // ── Crea stanza (HOST) ──────────────────────────────
-  createRoom() {
-    const code   = this._genCode();
-    const peerId = PREFIX + code.toLowerCase();
-
-    document.getElementById('el-code').textContent = code;
-    UI.setHostStatus('Connessione al server di signaling…');
-
-    isHost = true;
-    peer   = new Peer(peerId, { debug: 0 });
-
-    peer.on('open', () => {
-      myId = peerId;
-      // Posizione iniziale host: lato sinistro
-      players[myId] = { x: 60, y: CH / 2 - SZ / 2, color: COLOR_HOST, label: 'Tu (host)' };
-      UI.setHostStatus('✓ Pronto — in attesa del tuo amico…', 'ok');
+    // ── Menu ──────────────────────────────────────────────────────────────
+    document.getElementById('btn-create').addEventListener('click', () => {
+      UI.setStatus('menu-status', 'Connessione al server di signaling…');
+      Net.createRoom(
+        ()    => { UI.setStatus('menu-status', ''); Lobby.init(); },
+        (err) => { UI.setStatus('menu-status', 'Errore: ' + err, 'err'); }
+      );
     });
 
-    // Arriva una connessione entrante dal guest
-    peer.on('connection', (c) => {
-      conn = c;
-      this._setupConn();
+    document.getElementById('btn-show-join').addEventListener('click', () => {
+      UI.show('join');
+      document.getElementById('join-status').textContent = '';
+      document.getElementById('join-input').value = '';
     });
 
-    peer.on('error', (e) => {
-      UI.setHostStatus('Errore: ' + e.type, 'err');
-    });
-  },
-
-  // ── Entra in stanza (GUEST) ─────────────────────────
-  join() {
-    const code = document.getElementById('el-join-input').value.trim();
-    if (code.length !== 6) {
-      UI.setJoinStatus('Inserisci un codice di 6 caratteri.', 'err');
-      return;
-    }
-
-    UI.setJoinStatus('Connessione in corso…');
-    isHost = false;
-
-    peer = new Peer({ debug: 0 }); // ID auto-generato per il guest
-
-    peer.on('open', (id) => {
-      myId = id;
-      // Posizione iniziale guest: lato destro
-      players[myId] = { x: CW - 60 - SZ, y: CH / 2 - SZ / 2, color: COLOR_GUEST, label: 'Tu (guest)' };
-
-      conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true });
-      this._setupConn();
+    // ── Join ──────────────────────────────────────────────────────────────
+    document.getElementById('btn-do-join').addEventListener('click', () => {
+      const code = document.getElementById('join-input').value.trim();
+      if (code.length !== 6) {
+        UI.setStatus('join-status', 'Inserisci 6 caratteri.', 'err');
+        return;
+      }
+      UI.setStatus('join-status', 'Connessione in corso…');
+      Net.joinRoom(code,
+        ()    => { UI.setStatus('join-status', ''); Lobby.init(); },
+        (err) => { UI.setStatus('join-status', 'Errore: ' + err, 'err'); }
+      );
     });
 
-    peer.on('error', (e) => {
-      UI.setJoinStatus('Errore: ' + e.type + ' — codice corretto?', 'err');
+    document.getElementById('join-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-do-join').click();
     });
-  },
 
-  // ── Setup connessione (uguale per host e guest) ─────
-  _setupConn() {
-    conn.on('open', () => {
-      conn.on('data',  (msg) => this._onData(msg));
-      conn.on('close', ()    => this._onClose());
-      conn.on('error', (e)   => console.warn('conn error', e));
+    document.getElementById('btn-back-join').addEventListener('click', UI.goToMenu.bind(UI));
 
-      // Entrambi mandano il proprio stato iniziale (posizione + colore)
-      this.send({
-        type:  'HELLO',
-        x:     players[myId].x,
-        y:     players[myId].y,
-        color: players[myId].color
-      });
-
-      Game.start();
+    // ── Lobby ─────────────────────────────────────────────────────────────
+    document.getElementById('btn-copy-code').addEventListener('click', async () => {
+      await UI.copyText(State.roomCode);
+      UI.flashButton(document.getElementById('btn-copy-code'), '✓', 1200);
     });
-  },
 
-  // ── Invia messaggio ─────────────────────────────────
-  send(msg) {
-    if (conn && conn.open) conn.send(msg);
-  },
+    document.getElementById('nickname-input').addEventListener('input', e => {
+      Lobby.onNicknameChange(e.target.value);
+    });
 
-  // ── Riceve messaggio ────────────────────────────────
-  _onData(msg) {
-    switch (msg.type) {
+    document.getElementById('btn-ready').addEventListener('click', () => Lobby.toggleReady());
+    document.getElementById('btn-start').addEventListener('click', () => Lobby.startGame());
+    document.getElementById('btn-leave').addEventListener('click', UI.goToMenu.bind(UI));
 
-      // Prima connessione: registra l'altro giocatore
-      case 'HELLO':
-        players['other'] = { x: msg.x, y: msg.y, color: msg.color, label: 'Amico' };
-        document.getElementById('el-other-swatch').style.background = msg.color;
-        document.getElementById('el-other-label').textContent = 'Amico';
-        break;
+    // ── Game ──────────────────────────────────────────────────────────────
+    document.getElementById('btn-copy-code-game').addEventListener('click', async () => {
+      await UI.copyText(State.roomCode);
+      UI.flashButton(document.getElementById('btn-copy-code-game'), '✓', 1200);
+    });
 
-      // Aggiorna la posizione dell'altro giocatore
-      case 'MOVE':
-        if (players['other']) {
-          players['other'].x = msg.x;
-          players['other'].y = msg.y;
-        }
-        break;
-    }
-  },
+  });
+  </script>
 
-  _onClose() {
-    document.getElementById('el-conn-status').textContent = '🔴 Disconnesso';
-    gameActive = false;
-  }
-};
-
-
-// ═══════════════════════════════════════════════════════
-//  GAME LOOP
-// ═══════════════════════════════════════════════════════
-
-const canvas = document.getElementById('canvas');
-const ctx    = canvas.getContext('2d');
-
-const Game = {
-
-  start() {
-    const me = players[myId];
-    document.getElementById('el-my-swatch').style.background = me.color;
-    document.getElementById('el-my-label').textContent       = me.label;
-
-    UI.show('game');
-    canvas.focus();
-
-    if (!gameActive) {
-      gameActive = true;
-      requestAnimationFrame(() => this.loop());
-    }
-  },
-
-  loop() {
-    if (!gameActive) return;
-    this.update();
-    this.render();
-    requestAnimationFrame(() => this.loop());
-  },
-
-  // Muove il mio sprite e notifica l'avversario se la posizione cambia
-  update() {
-    const me = players[myId];
-    if (!me) return;
-
-    const ox = me.x, oy = me.y;
-
-    if (keys['ArrowLeft'])  me.x = Math.max(0,       me.x - SPEED);
-    if (keys['ArrowRight']) me.x = Math.min(CW - SZ, me.x + SPEED);
-    if (keys['ArrowUp'])    me.y = Math.max(0,       me.y - SPEED);
-    if (keys['ArrowDown'])  me.y = Math.min(CH - SZ, me.y + SPEED);
-
-    if (me.x !== ox || me.y !== oy) {
-      Net.send({ type: 'MOVE', x: me.x, y: me.y });
-    }
-  },
-
-  // Disegna sfondo, griglia e sprite
-  render() {
-    // Sfondo
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(0, 0, CW, CH);
-
-    // Griglia
-    ctx.strokeStyle = '#161b22';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= CW; x += CELL) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CH); ctx.stroke();
-    }
-    for (let y = 0; y <= CH; y += CELL) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke();
-    }
-
-    // Sprite di tutti i giocatori presenti
-    for (const [id, p] of Object.entries(players)) {
-      this._drawSprite(p, id === myId);
-    }
-  },
-
-  _drawSprite(p, isMe) {
-    const { x, y, color, label } = p;
-
-    // Ombra sotto lo sprite
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.beginPath();
-    ctx.ellipse(x + SZ / 2, y + SZ + 4, SZ / 2 - 3, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Corpo (rettangolo arrotondato)
-    ctx.fillStyle = color;
-    this._rrect(x, y, SZ, SZ, 7);
-    ctx.fill();
-
-    // Highlight superiore (dà profondità)
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    this._rrect(x + 3, y + 3, SZ - 6, 13, 4);
-    ctx.fill();
-
-    // Occhi
-    ctx.fillStyle = 'white';
-    ctx.fillRect(x + 6,        y + 13, 7, 7);
-    ctx.fillRect(x + SZ - 13,  y + 13, 7, 7);
-    // Pupille
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(x + 8,        y + 15, 3, 3);
-    ctx.fillRect(x + SZ - 11,  y + 15, 3, 3);
-
-    // Bordo evidenziato solo per il mio sprite
-    if (isMe) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-      ctx.lineWidth = 2;
-      this._rrect(x, y, SZ, SZ, 7);
-      ctx.stroke();
-    }
-
-    // Etichetta sopra lo sprite
-    ctx.fillStyle    = isMe ? '#e6edf3' : '#8b949e';
-    ctx.font         = 'bold 10px system-ui';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(label, x + SZ / 2, y - 4);
-  },
-
-  // Helper: percorso rettangolo arrotondato
-  _rrect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h,     x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y,         x + r, y);
-    ctx.closePath();
-  }
-};
-
-
-// ═══════════════════════════════════════════════════════
-//  INPUT – tasti freccia
-// ═══════════════════════════════════════════════════════
-
-document.addEventListener('keydown', e => {
-  keys[e.key] = true;
-  // Impedisce lo scroll della pagina con le frecce
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-    e.preventDefault();
-  }
-});
-
-document.addEventListener('keyup', e => { keys[e.key] = false; });
-
-
-// ── Render iniziale del canvas (mostra la griglia prima del gioco) ──
-Game.render();
-
-</script>
 </body>
 </html>
