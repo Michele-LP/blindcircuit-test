@@ -1,40 +1,33 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — Game loop, rendering robot, input.
+//  GAME.JS — Game loop, rendering tabellone + robot, input Fase 2.
 //
-//  FASE 2:
-//  - Robot posizionati sulla griglia (cx, cy in celle + dir N/E/S/O)
-//  - Animazione fluida: renderX/Y lerp verso la posizione target ogni frame
-//  - Rotazione dello sprite lerp verso la direzione target
-//  - Frecce: spostamento di 1 cella per pressione (cooldown 150ms)
-//  - La board (tabellone) è renderizzata da Board.render()
-//
-//  FASE 3 (prossima): sostituire il movimento libero con la fase di
-//  programmazione (carte nei registri + esecuzione automatica).
+//  FASE 3 aggiunge:
+//  - Routing ROUND_START / PROGRAM_REGISTERS / ALL_PROGRAMMED → Cards
+//  - Dopo Game.init() l'host avvia il primo round dopo 1s
+//  - Le frecce restano solo come test: in Fase 4 il movimento
+//    sarà pilotato dall'esecuzione automatica delle carte
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
 
-  const CELL = 48;   // pixel per cella — deve essere uguale a Board.CELL
-  const SZ   = 36;   // dimensione sprite robot in pixel
+  const CELL = 48;
+  const SZ   = 36;
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
 
-  // ── Stato animazione (privato, solo per il rendering) ─────────────────────
-  // Non va in State.players perché è pura visualizzazione locale.
-  // { [playerId]: { renderX, renderY, renderAngle } }
   const anim = {};
+  let active       = false;
+  let lastMoveTime = 0;
+  const MOVE_CD    = 150;
 
-  let active        = false;
-  let lastMoveTime  = 0;
-  const MOVE_CD     = 150; // ms di cooldown tra uno spostamento e il successivo
-
-  // Mappa direzione → angolo radianti (N=su = -90°)
   const DIR_ANGLE = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
 
-  // ── Input — DENTRO l'IIFE (qui `lastMoveTime` è nella closure) ───────────
+  // ── Input frecce (test Fase 2 — verrà rimosso in Fase 4) ──────────────
   document.addEventListener('keydown', e => {
     if (!active) return;
+    // Non intercettare input durante la programmazione
+    if (document.getElementById('scr-programming').classList.contains('active')) return;
 
     const now = performance.now();
     if (now - lastMoveTime < MOVE_CD) return;
@@ -50,41 +43,27 @@ const Game = (() => {
     };
     const mv = moves[e.key];
     if (!mv) return;
-
     e.preventDefault();
 
     const newCx = me.cx + mv.dx;
     const newCy = me.cy + mv.dy;
-
-    // Verifica bordi mappa
     if (!Board.inBounds(newCx, newCy)) return;
 
-    // Aggiorno lo stato locale immediatamente (UX responsiva)
     me.cx  = newCx;
     me.cy  = newCy;
     me.dir = mv.dir;
     lastMoveTime = now;
-
-    // Invio la nuova posizione agli altri
     Net.sendToAll({ type: 'MOVE', cx: me.cx, cy: me.cy, dir: me.dir });
   });
 
-  // ── Funzioni helper ───────────────────────────────────────────────────────
-
-  /** Interpolazione lineare */
   function lerp(a, b, t) { return a + (b - a) * t; }
 
-  /**
-   * Interpolazione angolare — prende il percorso più breve
-   * (es. da 350° a 10° ruota 20° non 340°).
-   */
   function lerpAngle(a, b, t) {
     while (b - a >  Math.PI) a += Math.PI * 2;
     while (a - b >  Math.PI) b += Math.PI * 2;
     return a + (b - a) * t;
   }
 
-  /** Inizializza o aggiorna lo stato di animazione per un giocatore */
   function initAnim(p) {
     if (!anim[p.id]) {
       anim[p.id] = {
@@ -95,40 +74,47 @@ const Game = (() => {
     }
   }
 
-  // ── API pubblica ───────────────────────────────────────────────────────────
   return {
 
-    // ── Avvio (chiamato da Lobby quando la partita inizia) ─────────────────
     init(mapData) {
       Board.load(mapData);
       State.phase = 'game';
+      State.round = 0;
 
-      // Imposta il canvas alla dimensione della mappa
       canvas.width  = Board.W;
       canvas.height = Board.H;
 
-      // Posiziona i giocatori alle posizioni di partenza del JSON
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
         p.cx  = sp.x;
         p.cy  = sp.y;
         p.dir = sp.dir ?? 'N';
-        initAnim(p); // inizializza subito senza animazione
+        initAnim(p);
       });
 
-      // Aggiorna HUD partita e codice stanza
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
-
+      Cards.preload();
       UI.show('game');
 
       if (!active) {
         active = true;
         requestAnimationFrame(() => this.loop());
       }
+
+      // Host avvia il primo round di programmazione dopo 1s
+      if (State.isHost) {
+        setTimeout(() => {
+          State.round = 1;
+          Net.sendToAll({
+            type:     'ROUND_START',
+            round:    State.round,
+            timerSec: CONFIG.programmingTimerSec,
+          });
+        }, 1000);
+      }
     },
 
-    // ── Game loop ──────────────────────────────────────────────────────────
     loop() {
       if (!active) return;
       this._updateAnim();
@@ -136,14 +122,11 @@ const Game = (() => {
       requestAnimationFrame(() => this.loop());
     },
 
-    // ── Aggiorna le posizioni di rendering (lerp verso target) ─────────────
     _updateAnim() {
-      const LERP = 0.18; // velocità animazione: 0 = fermo, 1 = snap immediato
-
+      const LERP = 0.18;
       for (const p of Object.values(State.players)) {
         if (p.cx === undefined) continue;
         initAnim(p);
-
         const a = anim[p.id];
         a.renderX     = lerp(a.renderX,     p.cx * CELL,           LERP);
         a.renderY     = lerp(a.renderY,     p.cy * CELL,           LERP);
@@ -151,34 +134,26 @@ const Game = (() => {
       }
     },
 
-    // ── Rendering ─────────────────────────────────────────────────────────
     _render() {
-      // 1. Tabellone (da cache offscreen)
       Board.render(ctx);
-
-      // 2. Robot sopra il tabellone
       for (const p of Object.values(State.players)) {
         if (p.cx === undefined) continue;
         const a = anim[p.id];
-        if (!a) continue;
-        this._drawRobot(p, a.renderX, a.renderY, a.renderAngle);
+        if (a) this._drawRobot(p, a.renderX, a.renderY, a.renderAngle);
       }
     },
 
-    // ── Disegna un singolo robot ──────────────────────────────────────────
     _drawRobot(p, rx, ry, angle) {
       const isMe = p.id === State.myId;
       const char = CONFIG.characters.find(c => c.id === p.character);
       const col  = char?.color ?? '#6b7280';
-
-      // Centro sprite in pixel (ry = top-left, +CELL/2 per centrare nella cella)
-      const cx = rx + CELL / 2;
-      const cy = ry + CELL / 2;
+      const cx   = rx + CELL / 2;
+      const cy   = ry + CELL / 2;
       const half = SZ / 2;
 
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(angle); // rotazione attorno al centro
+      ctx.rotate(angle);
 
       // Ombra
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -191,29 +166,28 @@ const Game = (() => {
       ctx.fillStyle = col;
       ctx.fill();
 
-      // Highlight superiore
+      // Highlight
       this._rrect(ctx, -half + 3, -half + 3, SZ - 6, 12, 4);
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.fill();
 
-      // Triangolo direzione (punta "verso l'alto" prima della rotazione = direzione N)
+      // Triangolo direzione (punta verso N prima della rotazione)
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.beginPath();
-      ctx.moveTo(0,       -half + 5);
-      ctx.lineTo(-6,      -half + 14);
-      ctx.lineTo(6,       -half + 14);
+      ctx.moveTo(0, -half + 5);
+      ctx.lineTo(-6, -half + 14);
+      ctx.lineTo(6,  -half + 14);
       ctx.closePath();
       ctx.fill();
 
       // Occhi
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(-half + 6,  2, 7, 6);
-      ctx.fillRect(half  - 13, 2, 7, 6);
+      ctx.fillRect(half - 13,  2, 7, 6);
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.fillRect(-half + 7,  3, 3, 3);
-      ctx.fillRect(half  - 11, 3, 3, 3);
+      ctx.fillRect(half - 11,  3, 3, 3);
 
-      // Bordo bianco se sono io
       if (isMe) {
         this._rrect(ctx, -half, -half, SZ, SZ, 7);
         ctx.strokeStyle = 'rgba(255,255,255,0.7)';
@@ -223,7 +197,7 @@ const Game = (() => {
 
       ctx.restore();
 
-      // Nickname sopra (fuori dalla rotazione, sempre leggibile)
+      // Nickname (fuori dalla rotazione)
       ctx.fillStyle    = isMe ? '#e6edf3' : '#9ca3af';
       ctx.font         = 'bold 10px system-ui';
       ctx.textAlign    = 'center';
@@ -231,7 +205,6 @@ const Game = (() => {
       ctx.fillText((p.nickname || '?').substring(0, 12), cx, ry - 3);
     },
 
-    // ── Helper: rettangolo arrotondato ────────────────────────────────────
     _rrect(ctx, x, y, w, h, r) {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
@@ -242,24 +215,18 @@ const Game = (() => {
       ctx.closePath();
     },
 
-    // ── Gestisce messaggi di rete in fase game ────────────────────────────
+    // Routing messaggi: MOVE va al rendering, tutto il resto a Cards
     handleMessage(fromId, msg) {
-      switch (msg.type) {
-        case 'MOVE': {
-          const id = msg.from ?? fromId;
-          const p  = State.players[id];
-          if (p) {
-            p.cx  = msg.cx;
-            p.cy  = msg.cy;
-            p.dir = msg.dir ?? p.dir;
-          }
-          break;
-        }
-        // Fase 3+: REGISTER_SUBMIT, EXECUTE_STEP, ROUND_START, ecc.
+      if (msg.type === 'MOVE') {
+        const id = msg.from ?? fromId;
+        const p  = State.players[id];
+        if (p) { p.cx = msg.cx; p.cy = msg.cy; p.dir = msg.dir ?? p.dir; }
+        return;
       }
+      // ROUND_START, PROGRAM_REGISTERS, ALL_PROGRAMMED → Cards
+      Cards.handleGameMessage(fromId, msg);
     },
 
-    // ── Costruisce l'HUD con i nomi dei giocatori ─────────────────────────
     _buildHud() {
       const hud = document.getElementById('game-hud');
       hud.innerHTML = '';
@@ -269,13 +236,10 @@ const Game = (() => {
         const isMe  = p.id === State.myId;
         const tag   = document.createElement('div');
         tag.className = 'player-tag' + (isMe ? ' is-me' : '');
-        tag.innerHTML = `
-          <div class="swatch" style="background:${color}"></div>
-          <span>${(p.nickname || '?').substring(0, 12)}${isMe ? ' (tu)' : ''}</span>
-        `;
+        tag.innerHTML = `<div class="swatch" style="background:${color}"></div>
+          <span>${(p.nickname || '?').substring(0, 12)}${isMe ? ' (tu)' : ''}</span>`;
         hud.appendChild(tag);
       }
     },
   };
-
 })();

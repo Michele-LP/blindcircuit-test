@@ -92,6 +92,39 @@
     <div class="hint">← ↑ ↓ → per muovere il tuo robot &nbsp;|&nbsp; <em>Fase 2: griglia e carte in arrivo</em></div>
   </div>
 
+
+  <!-- ── PROGRAMMAZIONE ───────────────────────────────────────────────── -->
+  <div id="scr-programming" class="screen">
+
+    <!-- Header -->
+    <div class="prog-header">
+      <div class="prog-title" id="prog-title">Programmazione</div>
+      <div class="prog-timer" id="prog-timer">30</div>
+    </div>
+
+    <!-- Registri P1-P5 -->
+    <div class="registers-row" id="registers-row">
+      <div class="reg-group"><div class="reg-label">P1</div><div class="reg-slot" id="reg-0"></div></div>
+      <div class="reg-group"><div class="reg-label">P2</div><div class="reg-slot" id="reg-1"></div></div>
+      <div class="reg-group"><div class="reg-label">P3</div><div class="reg-slot" id="reg-2"></div></div>
+      <div class="reg-group"><div class="reg-label">P4</div><div class="reg-slot" id="reg-3"></div></div>
+      <div class="reg-group"><div class="reg-label">P5</div><div class="reg-slot" id="reg-4"></div></div>
+    </div>
+
+    <!-- Stato + Conferma -->
+    <div class="prog-actions">
+      <span class="prog-status" id="prog-status">Scegli 5 carte</span>
+      <button class="btn btn-primary" id="btn-confirm" disabled onclick="Cards.confirm()">
+        Conferma →
+      </button>
+    </div>
+
+    <!-- Mano (9 carte) -->
+    <div class="hand-label">Mano</div>
+    <div class="hand-row" id="hand-row"></div>
+
+  </div>
+
   <!-- ── SCRIPTS (ordine fondamentale) ─────────────────────────────────── -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/config.js"></script>
@@ -100,6 +133,7 @@
   <script src="js/ui.js"></script>
   <script src="js/lobby.js"></script>
   <script src="js/board.js"></script>
+  <script src="js/cards.js"></script>
   <script src="js/game.js"></script>
 
   <!-- ── WIRING EVENTI ─────────────────────────────────────────────────── -->
