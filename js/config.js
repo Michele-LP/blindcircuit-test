@@ -63,4 +63,26 @@ const CONFIG = Object.freeze({
   moveAnimMs:   200,        // durata animazione spostamento (ms)
   rotateAnimMs: 150,        // durata animazione rotazione (ms)
 
+  // ── Carte azione (Fase 3) ─────────────────────────────────────────────────
+  // image: percorso al PNG dell'icona da sovrapporre al frame CardFront_01.png
+  // Immagini mancanti (da creare): spam, worm
+  cardFrame: 'assets/cards/CardFront_01.png',
+  cardBack:  'assets/cards/CardBack.png',
+
+  cards: [
+    { id: 'move1',       name: 'Avanza 1',       image: 'assets/cards/Forward1.png',  desc: 'Avanza di 1 cella' },
+    { id: 'move2',       name: 'Avanza 2',       image: 'assets/cards/Forward2.png',  desc: 'Avanza di 2 celle' },
+    { id: 'move3',       name: 'Avanza 3',       image: 'assets/cards/Forward3.png',  desc: 'Avanza di 3 celle' },
+    { id: 'backUp',      name: 'Indietro',       image: 'assets/cards/Backward1.png', desc: 'Arretra di 1 cella' },
+    { id: 'rotateRight', name: 'Gira Destra',    image: 'assets/cards/TurnRight.png', desc: 'Ruota 90° a destra' },
+    { id: 'rotateLeft',  name: 'Gira Sinistra',  image: 'assets/cards/TurnLeft.png',  desc: 'Ruota 90° a sinistra' },
+    { id: 'uTurn',       name: 'Inversione U',   image: 'assets/cards/TurnU.png',     desc: 'Inversione 180°' },
+    { id: 'again',       name: 'Ripeti',         image: 'assets/cards/Repeat.png',    desc: 'Ripete il registro precedente' },
+    { id: 'recharge',    name: 'Ricarica',       image: 'assets/cards/Recharge.png',  desc: 'Nessun movimento; +1 energia' },
+    // Carte danno (immagini ancora mancanti)
+    { id: 'spam',        name: 'SPAM',           image: null, desc: 'Azione casuale dagli scarti' },
+    { id: 'worm',        name: 'WORM',           image: null, desc: 'Blocca un registro al prossimo turno' },
+  ],
+
+
 });
