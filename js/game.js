@@ -1,11 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — Game loop, rendering tabellone + robot, input Fase 2.
+//  GAME.JS — Canvas, robot, animazione lerp.
 //
-//  FASE 3 aggiunge:
-//  - Routing ROUND_START / PROGRAM_REGISTERS / ALL_PROGRAMMED → Cards
-//  - Dopo Game.init() l'host avvia il primo round dopo 1s
-//  - Le frecce restano solo come test: in Fase 4 il movimento
-//    sarà pilotato dall'esecuzione automatica delle carte
+//  Fase 4: le frecce (test Fase 2) sono rimosse.
+//          Il movimento avviene solo durante l'esecuzione delle carte.
+//          Routing messaggi: MOVE → qui; tutto il resto → Cards / Execution.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
@@ -17,47 +15,10 @@ const Game = (() => {
   const ctx    = canvas.getContext('2d');
 
   const anim = {};
-  let active       = false;
-  let lastMoveTime = 0;
-  const MOVE_CD    = 150;
 
   const DIR_ANGLE = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
 
-  // ── Input frecce (test Fase 2 — verrà rimosso in Fase 4) ──────────────
-  document.addEventListener('keydown', e => {
-    if (!active) return;
-    // Non intercettare input durante la programmazione
-    if (document.getElementById('scr-programming').classList.contains('active')) return;
-
-    const now = performance.now();
-    if (now - lastMoveTime < MOVE_CD) return;
-
-    const me = State.myPlayer();
-    if (!me || me.cx === undefined) return;
-
-    const moves = {
-      ArrowUp:    { dx:  0, dy: -1, dir: 'N' },
-      ArrowDown:  { dx:  0, dy:  1, dir: 'S' },
-      ArrowLeft:  { dx: -1, dy:  0, dir: 'W' },
-      ArrowRight: { dx:  1, dy:  0, dir: 'E' },
-    };
-    const mv = moves[e.key];
-    if (!mv) return;
-    e.preventDefault();
-
-    const newCx = me.cx + mv.dx;
-    const newCy = me.cy + mv.dy;
-    if (!Board.inBounds(newCx, newCy)) return;
-
-    me.cx  = newCx;
-    me.cy  = newCy;
-    me.dir = mv.dir;
-    lastMoveTime = now;
-    Net.sendToAll({ type: 'MOVE', cx: me.cx, cy: me.cy, dir: me.dir });
-  });
-
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
+  function lerp(a, b, t)       { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
     while (b - a >  Math.PI) a += Math.PI * 2;
     while (a - b >  Math.PI) b += Math.PI * 2;
@@ -84,25 +45,28 @@ const Game = (() => {
       canvas.width  = Board.W;
       canvas.height = Board.H;
 
+      // Posizione di partenza e init energia
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
-        p.cx  = sp.x;
-        p.cy  = sp.y;
-        p.dir = sp.dir ?? 'N';
+        p.cx  = sp.x; p.cy = sp.y; p.dir = sp.dir ?? 'N';
+        p.energy = p.energy ?? CONFIG.startingEnergy;
+        p.lastCheckpoint = 0;
+        p.checkpoints    = [];
         initAnim(p);
       });
+
+      // Token energia al primo giocatore (host)
+      State.energyToken = State.getPlayerList()[0]?.id ?? null;
 
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
       Cards.preload();
       UI.show('game');
 
-      if (!active) {
-        active = true;
-        requestAnimationFrame(() => this.loop());
-      }
+      // Avvia loop rendering
+      requestAnimationFrame(() => this._loop());
 
-      // Host avvia il primo round di programmazione dopo 1s
+      // Host: avvia il primo round dopo 1s
       if (State.isHost) {
         setTimeout(() => {
           State.round = 1;
@@ -115,11 +79,10 @@ const Game = (() => {
       }
     },
 
-    loop() {
-      if (!active) return;
+    _loop() {
       this._updateAnim();
       this._render();
-      requestAnimationFrame(() => this.loop());
+      requestAnimationFrame(() => this._loop());
     },
 
     _updateAnim() {
@@ -155,75 +118,70 @@ const Game = (() => {
       ctx.translate(cx, cy);
       ctx.rotate(angle);
 
-      // Ombra
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
       ctx.ellipse(0, half + 4, half - 2, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Corpo
       this._rrect(ctx, -half, -half, SZ, SZ, 7);
-      ctx.fillStyle = col;
-      ctx.fill();
+      ctx.fillStyle = col; ctx.fill();
 
-      // Highlight
       this._rrect(ctx, -half + 3, -half + 3, SZ - 6, 12, 4);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fill();
 
-      // Triangolo direzione (punta verso N prima della rotazione)
+      // Indicatore direzione (triangolo in cima)
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.beginPath();
-      ctx.moveTo(0, -half + 5);
-      ctx.lineTo(-6, -half + 14);
-      ctx.lineTo(6,  -half + 14);
-      ctx.closePath();
-      ctx.fill();
+      ctx.moveTo(0, -half + 5); ctx.lineTo(-6, -half + 14); ctx.lineTo(6, -half + 14);
+      ctx.closePath(); ctx.fill();
 
       // Occhi
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(-half + 6,  2, 7, 6);
-      ctx.fillRect(half - 13,  2, 7, 6);
+      ctx.fillRect(-half+6, 2, 7, 6); ctx.fillRect(half-13, 2, 7, 6);
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillRect(-half + 7,  3, 3, 3);
-      ctx.fillRect(half - 11,  3, 3, 3);
+      ctx.fillRect(-half+7, 3, 3, 3); ctx.fillRect(half-11, 3, 3, 3);
 
       if (isMe) {
         this._rrect(ctx, -half, -half, SZ, SZ, 7);
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth   = 2;
-        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.stroke();
       }
 
       ctx.restore();
 
-      // Nickname (fuori dalla rotazione)
+      // Nickname + energia (fuori dalla rotazione)
       ctx.fillStyle    = isMe ? '#e6edf3' : '#9ca3af';
       ctx.font         = 'bold 10px system-ui';
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText((p.nickname || '?').substring(0, 12), cx, ry - 3);
+      const label = (p.nickname || '?').substring(0, 10)
+        + (p.energy != null ? ` ⚡${p.energy}` : '');
+      ctx.fillText(label, cx, ry - 3);
+
+      // Checkpoint conquistati (piccoli punti sotto lo sprite)
+      const cps = p.checkpoints ?? [];
+      if (cps.length) {
+        ctx.textBaseline = 'top';
+        ctx.font = '10px system-ui';
+        ctx.fillText('★'.repeat(cps.length), cx, ry + SZ + 5);
+      }
     },
 
     _rrect(ctx, x, y, w, h, r) {
       ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);     ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
-      ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);     ctx.quadraticCurveTo(x, y + h,     x, y + h - r);
-      ctx.lineTo(x, y + r);         ctx.quadraticCurveTo(x, y,          x + r, y);
+      ctx.moveTo(x+r, y);
+      ctx.lineTo(x+w-r, y);     ctx.quadraticCurveTo(x+w, y,     x+w, y+r);
+      ctx.lineTo(x+w, y+h-r);   ctx.quadraticCurveTo(x+w, y+h,   x+w-r, y+h);
+      ctx.lineTo(x+r, y+h);     ctx.quadraticCurveTo(x,   y+h,   x, y+h-r);
+      ctx.lineTo(x, y+r);       ctx.quadraticCurveTo(x,   y,     x+r, y);
       ctx.closePath();
     },
 
-    // Routing messaggi: MOVE va al rendering, tutto il resto a Cards
     handleMessage(fromId, msg) {
       if (msg.type === 'MOVE') {
-        const id = msg.from ?? fromId;
-        const p  = State.players[id];
+        const p = State.players[msg.from ?? fromId];
         if (p) { p.cx = msg.cx; p.cy = msg.cy; p.dir = msg.dir ?? p.dir; }
         return;
       }
-      // ROUND_START, PROGRAM_REGISTERS, ALL_PROGRAMMED → Cards
       Cards.handleGameMessage(fromId, msg);
     },
 
@@ -237,7 +195,7 @@ const Game = (() => {
         const tag   = document.createElement('div');
         tag.className = 'player-tag' + (isMe ? ' is-me' : '');
         tag.innerHTML = `<div class="swatch" style="background:${color}"></div>
-          <span>${(p.nickname || '?').substring(0, 12)}${isMe ? ' (tu)' : ''}</span>`;
+          <span>${(p.nickname||'?').substring(0,12)}${isMe?' (tu)':''}</span>`;
         hud.appendChild(tag);
       }
     },

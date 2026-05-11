@@ -258,3 +258,43 @@ canvas { display: block; border: 1px solid #30363d; border-radius: 8px; max-widt
   line-height: 1.3;
   text-transform: uppercase;
 }
+
+/* ════════════════════════════════════════ VERSION BADGE */
+.version-badge {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 0.72rem;
+  color: #8b949e;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* ════════════════════════════════════════ SPAM COUNT */
+.prog-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.spam-count {
+  font-size: 0.8rem;
+  color: #f85149;
+  font-weight: 600;
+}
+
+/* ════════════════════════════════════════ WIN SCREEN */
+#scr-win { gap: 16px; text-align: center; }
+.win-trophy { font-size: 5rem; line-height: 1; }
+.win-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #e3b341;
+  letter-spacing: -0.02em;
+}
+.win-player {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e6edf3;
+}

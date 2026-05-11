@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RoboRally</title>
+  <title>BlindCircuit</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
   <!-- ── MENU ──────────────────────────────────────────────────────────── -->
   <div id="scr-menu" class="screen active">
-    <div class="title">🤖 RoboRally</div>
-    <div class="subtitle">Versione digitale per amici — nessun server richiesto</div>
+    <div class="title">⚙ BlindCircuit</div>
+    <div class="subtitle">Gioco di programmazione robot per amici</div>
+    <div class="version-badge" id="version-badge"></div>
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-create">Crea partita</button>
       <button class="btn btn-secondary" id="btn-show-join">Entra in partita</button>
@@ -120,9 +121,18 @@
     </div>
 
     <!-- Mano (9 carte) -->
-    <div class="hand-label">Mano</div>
+    <div class="prog-info-row"><div class="hand-label">Mano</div><div class="spam-count" id="spam-count"></div></div>
     <div class="hand-row" id="hand-row"></div>
 
+  </div>
+
+  <!-- ── VITTORIA ────────────────────────────────────────────────────── -->
+  <div id="scr-win" class="screen">
+    <div class="win-trophy">🏆</div>
+    <div class="win-title">Vittoria!</div>
+    <div class="win-player" id="win-player">Giocatore</div>
+    <p class="subtitle">Ha completato tutti i checkpoint!</p>
+    <button class="btn btn-primary" onclick="UI.goToMenu()">Torna al menu</button>
   </div>
 
   <!-- ── SCRIPTS (ordine fondamentale) ─────────────────────────────────── -->
@@ -134,11 +144,16 @@
   <script src="js/lobby.js"></script>
   <script src="js/board.js"></script>
   <script src="js/cards.js"></script>
+  <script src="js/execution.js"></script>
   <script src="js/game.js"></script>
 
   <!-- ── WIRING EVENTI ─────────────────────────────────────────────────── -->
   <script>
   document.addEventListener('DOMContentLoaded', () => {
+    // Badge versione
+    const vb = document.getElementById('version-badge');
+    if (vb) vb.textContent = `v${CONFIG.version} — ${CONFIG.gameName}`;
+
 
     // ── Menu ──────────────────────────────────────────────────────────────
     document.getElementById('btn-create').addEventListener('click', () => {

@@ -6,8 +6,12 @@
 
 const CONFIG = Object.freeze({
 
+  // ── Versione (aggiorna ad ogni fase per riconoscerla su GitHub)
+  version: '4-5',  // Fase attuale
+  gameName: 'BlindCircuit',
+
   // ── Rete ──────────────────────────────────────────────────────────────────
-  peerPrefix:  'rr-v1-',   // prefisso peer ID — cambia se vuoi isolare l'ambiente
+  peerPrefix:  'bc-v1-',   // prefisso peer ID — cambia se vuoi isolare l'ambiente
   peerDebug:   0,           // 0 = silenzioso | 2 = verbose (per debug di rete)
 
   // ── Partita ───────────────────────────────────────────────────────────────
