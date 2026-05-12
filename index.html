@@ -46,10 +46,12 @@
     </div>
 
     <div class="lobby-body">
+      <!-- Lista giocatori -->
       <div>
         <div class="section-label">Giocatori</div>
         <div class="player-list" id="player-list"></div>
       </div>
+      <!-- Setup personale -->
       <div class="my-setup">
         <div class="setup-field">
           <label for="nickname-input">Nickname</label>
@@ -66,6 +68,33 @@
       </div>
     </div>
 
+    <!--
+      Impostazioni partita — visibili solo all'host (nascosto via JS in Lobby.init()).
+      Queste impostazioni vengono incluse nel messaggio GAME_START e applicate
+      su tutti i client prima che inizi il gioco.
+    -->
+    <div id="game-settings" class="game-settings-panel" style="display:none">
+      <div class="section-label">⚙ Impostazioni partita</div>
+
+      <div class="setting-row">
+        <span class="setting-label">Esecuzione</span>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-exec-mode="auto"   title="I registri avanzano automaticamente">🤖 Automatica</button>
+          <button class="toggle-btn"        data-exec-mode="manual" title="Clicca Avanti per passare al prossimo registro">👆 Manuale</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Velocità</span>
+        <div class="toggle-group">
+          <button class="toggle-btn"        data-exec-speed="1" title="Lenta — ottima per imparare">🐢 Lenta</button>
+          <button class="toggle-btn active" data-exec-speed="2" title="Normale">🚶 Normale</button>
+          <button class="toggle-btn"        data-exec-speed="3" title="Veloce">🏃 Veloce</button>
+          <button class="toggle-btn"        data-exec-speed="4" title="Rapidissima — per testare">⚡ Test</button>
+        </div>
+      </div>
+    </div>
+
     <div class="lobby-footer">
       <button class="btn btn-secondary" id="btn-leave">← Esci</button>
       <div class="lobby-status" id="lobby-status"></div>
@@ -76,9 +105,15 @@
 
   </div>
 
-  <!-- ── GAME ──────────────────────────────────────────────────────────── -->
-  <div id="scr-game" class="screen">
+  <!-- ── GAME — plancia + pannello laterale ────────────────────────────── -->
+  <!--
+    Questa è l'unica schermata di gioco. Sia la fase di programmazione
+    che quella di esecuzione avvengono qui, cambiando il contenuto
+    del pannello laterale (#game-side) senza mai nascondere la plancia.
+  -->
+  <div id="scr-game" class="screen game-screen">
 
+    <!-- Top bar: HUD + codice stanza -->
     <div class="game-top-bar">
       <div class="game-hud" id="game-hud"></div>
       <div class="room-code-widget small">
@@ -88,46 +123,89 @@
       </div>
     </div>
 
-    <canvas id="canvas" width="576" height="576"></canvas>
+    <!-- Layout principale: plancia a sinistra, pannello a destra -->
+    <div class="game-main">
 
-    <!--
-      Pannello esecuzione — visibile solo durante l'esecuzione delle carte.
-      Viene popolato da Game.showExecPanel() e svuotato da Game.hideExecPanel().
-    -->
-    <div id="exec-panel" style="display:none"></div>
+      <!-- Plancia — sempre visibile -->
+      <canvas id="canvas" width="480" height="480"></canvas>
 
-  </div>
+      <!-- Pannello laterale — cambia contenuto in base alla fase -->
+      <div id="game-side">
 
-  <!-- ── PROGRAMMAZIONE ───────────────────────────────────────────────── -->
-  <div id="scr-programming" class="screen">
+        <!-- ══ PANNELLO PROGRAMMAZIONE ════════════════════════════════════
+             Visibile durante la fase di programmazione.
+             Mostra registri, mano, stato degli altri giocatori.
+             Game.enterProgramming() lo mostra; Game.hideExecPanel() lo nasconde.
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div id="prog-panel" class="side-panel" style="display:none">
 
-    <div class="prog-header">
-      <div class="prog-title" id="prog-title">Programmazione</div>
-      <div class="prog-timer" id="prog-timer">30</div>
-    </div>
+          <div class="prog-header-sm">
+            <div class="prog-title" id="prog-title">Programmazione</div>
+            <div class="spam-count" id="spam-count"></div>
+          </div>
 
-    <div class="registers-row" id="registers-row">
-      <div class="reg-group"><div class="reg-label">P1</div><div class="reg-slot" id="reg-0"></div></div>
-      <div class="reg-group"><div class="reg-label">P2</div><div class="reg-slot" id="reg-1"></div></div>
-      <div class="reg-group"><div class="reg-label">P3</div><div class="reg-slot" id="reg-2"></div></div>
-      <div class="reg-group"><div class="reg-label">P4</div><div class="reg-slot" id="reg-3"></div></div>
-      <div class="reg-group"><div class="reg-label">P5</div><div class="reg-slot" id="reg-4"></div></div>
-    </div>
+          <!-- Registri P1-P5 -->
+          <div class="section-label-sm">Registri</div>
+          <div class="registers-row-sm">
+            <div class="reg-group-sm"><div class="reg-label-sm">P1</div><div class="reg-slot-sm" id="reg-0"></div></div>
+            <div class="reg-group-sm"><div class="reg-label-sm">P2</div><div class="reg-slot-sm" id="reg-1"></div></div>
+            <div class="reg-group-sm"><div class="reg-label-sm">P3</div><div class="reg-slot-sm" id="reg-2"></div></div>
+            <div class="reg-group-sm"><div class="reg-label-sm">P4</div><div class="reg-slot-sm" id="reg-3"></div></div>
+            <div class="reg-group-sm"><div class="reg-label-sm">P5</div><div class="reg-slot-sm" id="reg-4"></div></div>
+          </div>
 
-    <div class="prog-actions">
-      <span class="prog-status" id="prog-status">Scegli 5 carte</span>
-      <button class="btn btn-primary" id="btn-confirm" disabled onclick="Cards.confirm()">
-        Conferma →
-      </button>
-    </div>
+          <!-- Status + Conferma -->
+          <div class="prog-actions-sm">
+            <span class="prog-status" id="prog-status">Scegli 5 carte</span>
+            <button class="btn btn-primary btn-sm" id="btn-confirm" disabled onclick="Cards.confirm()">
+              Conferma →
+            </button>
+          </div>
 
-    <div class="prog-info-row">
-      <div class="hand-label">Mano</div>
-      <div class="spam-count" id="spam-count"></div>
-    </div>
-    <div class="hand-row" id="hand-row"></div>
+          <!-- Mano -->
+          <div class="section-label-sm">Mano</div>
+          <div class="hand-row-sm" id="hand-row"></div>
 
-  </div>
+          <!-- Stato giocatori -->
+          <div class="section-label-sm" style="margin-top:6px">Giocatori</div>
+          <div id="others-status"></div>
+
+        </div>
+
+        <!-- ══ PANNELLO ESECUZIONE ════════════════════════════════════════
+             Visibile durante l'esecuzione.
+             Mostra le carte programmate di tutti con highlight del registro corrente.
+             Popolato da Game.showExecPanel() e svuotato da Game.hideExecPanel().
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div id="exec-panel" class="side-panel" style="display:none">
+          <!-- Contenuto generato da Game.showExecPanel() -->
+        </div>
+
+        <!-- ══ CONTROLLI ══════════════════════════════════════════════════
+             Pulsanti sempre accessibili durante la fase di gioco.
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div class="game-controls-sm">
+          <!--
+            Avanti → : visibile solo in modalità MANUAL, quando execution
+            si è fermata dopo un registro e aspetta input dell'utente.
+          -->
+          <button class="btn btn-primary" id="btn-advance" style="display:none">
+            Avanti →
+          </button>
+          <!--
+            Round Successivo: visibile solo all'host, sempre durante la partita.
+            Salta il round corrente (esecuzione O programmazione) e va al prossimo.
+            UTILE PER TESTING.
+          -->
+          <button class="btn btn-secondary btn-sm" id="btn-skip-round" style="display:none">
+            ⏭ Round Successivo
+          </button>
+        </div>
+
+      </div><!-- /game-side -->
+    </div><!-- /game-main -->
+
+  </div><!-- /scr-game -->
 
   <!-- ── VITTORIA ────────────────────────────────────────────────────── -->
   <div id="scr-win" class="screen">
@@ -138,7 +216,7 @@
     <button class="btn btn-primary" onclick="UI.goToMenu()">Torna al menu</button>
   </div>
 
-  <!-- ── SCRIPTS ───────────────────────────────────────────────────────── -->
+  <!-- ── SCRIPTS (ordine obbligatorio) ─────────────────────────────────── -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/state.js"></script>
@@ -150,12 +228,13 @@
   <script src="js/execution.js"></script>
   <script src="js/game.js"></script>
 
-  <!-- ── WIRING EVENTI ─────────────────────────────────────────────────── -->
+  <!-- ── WIRING ─────────────────────────────────────────────────────────── -->
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     const vb = document.getElementById('version-badge');
     if (vb) vb.textContent = `v${CONFIG.version} — ${CONFIG.gameName}`;
 
+    // Menu
     document.getElementById('btn-create').addEventListener('click', () => {
       UI.setStatus('menu-status', 'Connessione al server di signaling…');
       Net.createRoom(
@@ -163,13 +242,13 @@
         (err) => { UI.setStatus('menu-status', 'Errore: ' + err, 'err'); }
       );
     });
-
     document.getElementById('btn-show-join').addEventListener('click', () => {
       UI.show('join');
       document.getElementById('join-status').textContent = '';
       document.getElementById('join-input').value = '';
     });
 
+    // Join
     document.getElementById('btn-do-join').addEventListener('click', () => {
       const code = document.getElementById('join-input').value.trim();
       if (code.length !== 6) { UI.setStatus('join-status', 'Inserisci 6 caratteri.', 'err'); return; }
@@ -179,26 +258,24 @@
         (err) => { UI.setStatus('join-status', 'Errore: ' + err, 'err'); }
       );
     });
-
     document.getElementById('join-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('btn-do-join').click();
     });
-
     document.getElementById('btn-back-join').addEventListener('click', UI.goToMenu.bind(UI));
 
+    // Lobby
     document.getElementById('btn-copy-code').addEventListener('click', async () => {
       await UI.copyText(State.roomCode);
       UI.flashButton(document.getElementById('btn-copy-code'), '✓', 1200);
     });
-
     document.getElementById('nickname-input').addEventListener('input', e => {
       Lobby.onNicknameChange(e.target.value);
     });
-
     document.getElementById('btn-ready').addEventListener('click', () => Lobby.toggleReady());
     document.getElementById('btn-start').addEventListener('click', () => Lobby.startGame());
     document.getElementById('btn-leave').addEventListener('click', UI.goToMenu.bind(UI));
 
+    // Game
     document.getElementById('btn-copy-code-game').addEventListener('click', async () => {
       await UI.copyText(State.roomCode);
       UI.flashButton(document.getElementById('btn-copy-code-game'), '✓', 1200);

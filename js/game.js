@@ -1,24 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — Canvas, robot, animazione lerp, pannello esecuzione.
+//  GAME.JS — v6.1
 //
-//  MODIFICHE v6:
-//  - lerp rallentato: 0.18 → 0.09 (robot si muovono più lentamente)
-//  - Sprite PNG robot (fallback ai robot disegnati se PNG non carica)
-//  - showExecPanel / highlightRegister / hideExecPanel per il pannello UI
+//  NOVITÀ:
+//  ─ CELL letto da CONFIG.cellSize (40px anziché 48px)
+//  ─ lerp dinamico in base a State.execSpeed (più veloce = lerp più alto)
+//  ─ enterProgramming() / enterExecution() gestiscono il pannello laterale
+//  ─ showExecPanel / highlightRegister / hideExecPanel: pannello esecuzione
+//  ─ showAdvanceButton / init btn-skip-round
+//  ─ Sprite PNG per i robot (fallback disegnato se PNG non disponibile)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
 
-  const CELL = 48;
-  const SZ   = 36;
-  const LERP = 0.09;   // era 0.18 — movimenti più leggibili
+  let CELL = CONFIG.cellSize;   // 40px
+  const SZ = Math.round(CELL * 0.75); // ~30px sprite robot
+
+  // Lerp in base alla velocità: lento → robot si muove piano; test → si teletrasporta
+  const LERP_BY_SPEED = [0.07, 0.12, 0.18, 0.30];
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
 
-  const anim        = {};
-  const _robotImgs  = {};   // { charId: HTMLImageElement }
-  const DIR_ANGLE   = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
+  const anim       = {};
+  const _robotImgs = {};
+  const DIR_ANGLE  = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
@@ -37,7 +42,6 @@ const Game = (() => {
     }
   }
 
-  // ── Precaricamento sprite robot ───────────────────────────────────────────
   function preloadRobotSprites() {
     for (const char of CONFIG.characters) {
       if (!char.sprite) continue;
@@ -47,12 +51,30 @@ const Game = (() => {
     }
   }
 
+  // ─── Pannello laterale: helpers ─────────────────────────────────────────
+
+  function setPanels(showProg, showExec) {
+    const pp = document.getElementById('prog-panel');
+    const ep = document.getElementById('exec-panel');
+    if (pp) pp.style.display = showProg ? 'flex' : 'none';
+    if (ep) ep.style.display = showExec ? 'flex' : 'none';
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+
   return {
 
-    init(mapData) {
+    // ── Inizializzazione (chiamato da Lobby quando GAME_START arriva) ───────
+    init(mapData, settings = {}) {
+      // Applica impostazioni host (già in State per i guest, qui per l'host stesso)
+      if (settings.execMode  !== undefined) State.execMode  = settings.execMode;
+      if (settings.execSpeed !== undefined) State.execSpeed = settings.execSpeed;
+
+      CELL = CONFIG.cellSize;
+
       Board.load(mapData);
-      Board.preloadImages();      // ← carica PNG tile in parallelo
-      preloadRobotSprites();      // ← carica PNG robot in parallelo
+      Board.preloadImages();
+      preloadRobotSprites();
 
       State.phase = 'game';
       State.round = 0;
@@ -62,7 +84,7 @@ const Game = (() => {
 
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
-        p.cx  = sp.x; p.cy = sp.y; p.dir = sp.dir ?? 'N';
+        p.cx  = sp.x; p.cy  = sp.y; p.dir = sp.dir ?? 'N';
         p.energy = p.energy ?? CONFIG.startingEnergy;
         p.lastCheckpoint = 0;
         p.checkpoints    = [];
@@ -73,7 +95,21 @@ const Game = (() => {
 
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
-      this.hideExecPanel();
+
+      // Pulsante "Round Successivo" — solo host, sempre visibile in game
+      const skipBtn = document.getElementById('btn-skip-round');
+      if (skipBtn) {
+        skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
+        skipBtn.onclick = () => Execution.skipToNextRound();
+      }
+
+      const advBtn = document.getElementById('btn-advance');
+      if (advBtn) {
+        advBtn.style.display = 'none';
+        advBtn.onclick = () => Execution.advance();
+      }
+
+      setPanels(false, false);
       Cards.preload();
       UI.show('game');
 
@@ -82,15 +118,12 @@ const Game = (() => {
       if (State.isHost) {
         setTimeout(() => {
           State.round = 1;
-          Net.sendToAll({
-            type:     'ROUND_START',
-            round:    State.round,
-            timerSec: CONFIG.programmingTimerSec,
-          });
+          Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0 });
         }, 1000);
       }
     },
 
+    // ── Game loop ─────────────────────────────────────────────────────────
     _loop() {
       this._updateAnim();
       this._render();
@@ -98,13 +131,15 @@ const Game = (() => {
     },
 
     _updateAnim() {
+      const speed = Math.max(1, Math.min(4, State.execSpeed ?? 2));
+      const L = LERP_BY_SPEED[speed - 1];
       for (const p of Object.values(State.players)) {
         if (p.cx === undefined) continue;
         initAnim(p);
         const a = anim[p.id];
-        a.renderX     = lerp(a.renderX,     p.cx * CELL,           LERP);
-        a.renderY     = lerp(a.renderY,     p.cy * CELL,           LERP);
-        a.renderAngle = lerpAngle(a.renderAngle, DIR_ANGLE[p.dir] ?? 0, LERP);
+        a.renderX     = lerp(a.renderX,     p.cx * CELL,           L);
+        a.renderY     = lerp(a.renderY,     p.cy * CELL,           L);
+        a.renderAngle = lerpAngle(a.renderAngle, DIR_ANGLE[p.dir] ?? 0, L);
       }
     },
 
@@ -118,22 +153,22 @@ const Game = (() => {
     },
 
     _drawRobot(p, rx, ry, angle) {
-      const isMe = p.id === State.myId;
-      const char = CONFIG.characters.find(c => c.id === p.character);
-      const col  = char?.color ?? '#6b7280';
-      const cx   = rx + CELL / 2;
-      const cy   = ry + CELL / 2;
-      const half = SZ / 2;
+      const isMe  = p.id === State.myId;
+      const char  = CONFIG.characters.find(c => c.id === p.character);
+      const col   = char?.color ?? '#6b7280';
+      const cx    = rx + CELL / 2;
+      const cy    = ry + CELL / 2;
+      const half  = SZ / 2;
 
-      // ── Ombra ─────────────────────────────────────────────────────────────
+      // Ombra
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
-      ctx.ellipse(cx, cy + half + 4, half - 2, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + half + 4, half - 2, 4, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // ── Sprite PNG se disponibile ──────────────────────────────────────────
+      // Sprite PNG se disponibile e caricata
       const spriteImg = char ? _robotImgs[char.id] : null;
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
         ctx.save();
@@ -141,91 +176,83 @@ const Game = (() => {
         ctx.rotate(angle);
         ctx.drawImage(spriteImg, -half, -half, SZ, SZ);
         ctx.restore();
-
-        // Bordo se sono io
         if (isMe) {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angle);
-          this._rrect(ctx, -half, -half, SZ, SZ, 7);
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          this._rrect(ctx, -half, -half, SZ, SZ, 6);
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
         }
       } else {
-        // ── Fallback: robot disegnato ──────────────────────────────────────
+        // Fallback disegnato
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle);
-
-        this._rrect(ctx, -half, -half, SZ, SZ, 7);
+        this._rrect(ctx, -half, -half, SZ, SZ, 6);
         ctx.fillStyle = col; ctx.fill();
-
-        this._rrect(ctx, -half + 3, -half + 3, SZ - 6, 12, 4);
-        ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fill();
-
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath();
-        ctx.moveTo(0, -half + 5); ctx.lineTo(-6, -half + 14); ctx.lineTo(6, -half + 14);
+        ctx.moveTo(0, -half + 4); ctx.lineTo(-5, -half + 12); ctx.lineTo(5, -half + 12);
         ctx.closePath(); ctx.fill();
-
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(-half+6, 2, 7, 6); ctx.fillRect(half-13, 2, 7, 6);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fillRect(-half+7, 3, 3, 3); ctx.fillRect(half-11, 3, 3, 3);
-
+        ctx.fillRect(-half+5, 2, 6, 5); ctx.fillRect(half-11, 2, 6, 5);
         if (isMe) {
-          this._rrect(ctx, -half, -half, SZ, SZ, 7);
+          this._rrect(ctx, -half, -half, SZ, SZ, 6);
           ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.stroke();
         }
-
         ctx.restore();
       }
 
-      // ── Etichetta (fuori dalla rotazione) ──────────────────────────────────
+      // Etichetta fuori dalla rotazione
       ctx.fillStyle    = isMe ? '#e6edf3' : '#9ca3af';
-      ctx.font         = 'bold 10px system-ui';
+      ctx.font         = `bold ${Math.max(8, CELL * 0.22)}px system-ui`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'bottom';
-      const label = (p.nickname || '?').substring(0, 10)
-        + (p.energy != null ? ` ⚡${p.energy}` : '');
-      ctx.fillText(label, cx, ry - 3);
+      ctx.fillText(
+        (p.nickname || '?').substring(0, 8) + (p.energy != null ? ` ⚡${p.energy}` : ''),
+        cx, ry - 2
+      );
 
       const cps = p.checkpoints ?? [];
       if (cps.length) {
         ctx.textBaseline = 'top';
-        ctx.font = '10px system-ui';
-        ctx.fillText('★'.repeat(cps.length), cx, ry + SZ + 5);
+        ctx.font = `${CELL * 0.22}px system-ui`;
+        ctx.fillText('★'.repeat(cps.length), cx, ry + SZ + 3);
       }
     },
 
     _rrect(ctx, x, y, w, h, r) {
       ctx.beginPath();
       ctx.moveTo(x+r, y);
-      ctx.lineTo(x+w-r, y);     ctx.quadraticCurveTo(x+w, y,   x+w, y+r);
-      ctx.lineTo(x+w, y+h-r);   ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-      ctx.lineTo(x+r, y+h);     ctx.quadraticCurveTo(x,   y+h, x, y+h-r);
-      ctx.lineTo(x, y+r);       ctx.quadraticCurveTo(x,   y,   x+r, y);
+      ctx.lineTo(x+w-r, y);   ctx.quadraticCurveTo(x+w, y,   x+w, y+r);
+      ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+      ctx.lineTo(x+r, y+h);   ctx.quadraticCurveTo(x,   y+h, x, y+h-r);
+      ctx.lineTo(x, y+r);     ctx.quadraticCurveTo(x,   y,   x+r, y);
       ctx.closePath();
     },
 
-    // ── Pannello esecuzione ───────────────────────────────────────────────────
+    // ── Mostra pannello programmazione ────────────────────────────────────
+    enterProgramming() {
+      setPanels(true, false);
+      this.showAdvanceButton(false);
+    },
+
+    // ── Pannello esecuzione ───────────────────────────────────────────────
     showExecPanel(registers) {
-      // registers = { playerId: ['move1', 'rotateLeft', ...] }
-      const panel = document.getElementById('exec-panel');
-      if (!panel) return;
+      setPanels(false, true);
 
-      panel.innerHTML = '';
+      const ep = document.getElementById('exec-panel');
+      if (!ep) return;
+      ep.innerHTML = '';
 
-      // Titolo
       const title = document.createElement('div');
       title.id = 'exec-panel-title';
-      title.textContent = '— Programma in esecuzione —';
-      panel.appendChild(title);
+      title.textContent = '— In esecuzione —';
+      ep.appendChild(title);
 
       for (const p of State.getPlayerList()) {
-        const regs = registers[p.id] ?? [];
+        const regs  = registers?.[p.id] ?? [];
         const char  = CONFIG.characters.find(c => c.id === p.character);
         const color = char?.color ?? '#6b7280';
         const isMe  = p.id === State.myId;
@@ -236,7 +263,7 @@ const Game = (() => {
         const nameEl = document.createElement('div');
         nameEl.className = 'exec-player-name';
         nameEl.style.color = color;
-        nameEl.textContent = (p.nickname || '?').substring(0, 10) + (isMe ? ' (tu)' : '');
+        nameEl.textContent = (p.nickname || '?').substring(0, 9) + (isMe ? ' ◀' : '');
         row.appendChild(nameEl);
 
         const regsEl = document.createElement('div');
@@ -247,51 +274,46 @@ const Game = (() => {
           const def    = CONFIG.cards.find(c => c.id === cardId);
           const slot   = document.createElement('div');
           slot.className = 'exec-card-slot';
-          slot.id = `exec-slot-${p.id}-${i}`;
+          slot.id    = `exec-slot-${p.id}-${i}`;
           slot.title = def?.name ?? '—';
-
           if (def?.image) {
             slot.style.backgroundImage = `url('${def.image}')`;
+            slot.style.backgroundSize  = 'contain';
+            slot.style.backgroundRepeat = 'no-repeat';
+            slot.style.backgroundPosition = 'center';
           }
-
-          // Abbreviazione in basso per leggibilità
           const abbr = document.createElement('span');
           abbr.className = 'card-abbr';
-          abbr.textContent = (def?.name ?? '?').substring(0, 5).toUpperCase();
+          abbr.textContent = (def?.name ?? (cardId ? '?' : '—')).substring(0, 6).toUpperCase();
           slot.appendChild(abbr);
-
           regsEl.appendChild(slot);
         }
         row.appendChild(regsEl);
-        panel.appendChild(row);
+        ep.appendChild(row);
       }
-
-      panel.style.display = 'flex';
     },
 
     highlightRegister(stepIndex) {
-      // Rimuovi highlight precedenti
-      document.querySelectorAll('.exec-card-slot').forEach(el => {
-        el.classList.remove('exec-active');
-      });
-      // Evidenzia colonna corrente per tutti i giocatori
+      document.querySelectorAll('.exec-card-slot').forEach(el => el.classList.remove('exec-active'));
       for (const p of State.getPlayerList()) {
         const slot = document.getElementById(`exec-slot-${p.id}-${stepIndex}`);
         if (slot) slot.classList.add('exec-active');
       }
-      // Aggiorna titolo
       const title = document.getElementById('exec-panel-title');
       if (title) title.textContent = `Registro P${stepIndex + 1} di ${CONFIG.registersCount}`;
     },
 
     hideExecPanel() {
-      const panel = document.getElementById('exec-panel');
-      if (panel) {
-        panel.style.display = 'none';
-        panel.innerHTML = '';
-      }
+      setPanels(false, false);
+      this.showAdvanceButton(false);
     },
 
+    showAdvanceButton(show) {
+      const btn = document.getElementById('btn-advance');
+      if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+    },
+
+    // ── Message routing ────────────────────────────────────────────────────
     handleMessage(fromId, msg) {
       if (msg.type === 'MOVE') {
         const p = State.players[msg.from ?? fromId];
@@ -311,7 +333,7 @@ const Game = (() => {
         const tag   = document.createElement('div');
         tag.className = 'player-tag' + (isMe ? ' is-me' : '');
         tag.innerHTML = `<div class="swatch" style="background:${color}"></div>
-          <span>${(p.nickname||'?').substring(0,12)}${isMe?' (tu)':''}</span>`;
+          <span>${(p.nickname||'?').substring(0,10)}${isMe?' (tu)':''}</span>`;
         hud.appendChild(tag);
       }
     },

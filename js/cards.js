@@ -1,9 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CARDS.JS — Gestione mazzo, fase di programmazione, UI carte.
+//  CARDS.JS — v6.1
 //
-//  BUG FIX v6: _autoConfirm usava Set per escludere carte già nei registri,
-//  il che rimuoveva TUTTE le copie di un tipo anche se ne era piazzata solo 1.
-//  Ora usa indexOf/splice: rimuove una copia alla volta → corretto.
+//  NOVITÀ:
+//  ─ Nessun timer (programmingTimerSec = 0 → timer disabilitato)
+//  ─ startRound() chiama Game.enterProgramming() invece di UI.show('programming')
+//  ─ updateOthersStatus(): aggiorna la sezione "Giocatori" nel pannello laterale
+//  ─ PROGRAM_REGISTERS viene gestito anche dai client non-host per segnare
+//    chi ha già confermato (aggiorna lo stato visivo)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Cards = {
@@ -11,9 +14,9 @@ const Cards = {
   _imgs: {},
   _timerInterval: null,
   _timerLeft: 0,
-  _confirmed: {},
+  _confirmed: {},  // solo su host: { playerId: registers[] }
 
-  // ── Precariamento immagini carte ──────────────────────────────────────────
+  // ── Precaricamento immagini ───────────────────────────────────────────────
   preload() {
     const srcs = [CONFIG.cardFrame, CONFIG.cardBack,
       ...CONFIG.cards.filter(c => c.image).map(c => c.image)];
@@ -27,8 +30,9 @@ const Cards = {
   },
 
   _safeRender() {
-    if (document.getElementById('scr-programming')?.classList.contains('active'))
-      this.render();
+    // Ri-renderizza solo se il pannello programmazione è visibile
+    const pp = document.getElementById('prog-panel');
+    if (pp && pp.style.display !== 'none') this.render();
   },
 
   // ── Mazzo ─────────────────────────────────────────────────────────────────
@@ -77,77 +81,31 @@ const Cards = {
 
     if (!me.deck) this._initPlayerCards(me);
 
+    // Reset confirmed per tutti (per il pannello "Giocatori")
+    for (const p of Object.values(State.players)) p.confirmed = false;
+
     me.discard.push(...me.hand);
     me.hand      = [];
     me.registers = new Array(CONFIG.registersCount).fill(null);
     me.confirmed = false;
 
-    const spamInDeck = me.deck.filter(c => c === 'spam').length;
-
     if (State.isHost) this._confirmed = {};
 
+    const spamInDeck = me.deck.filter(c => c === 'spam').length;
+
     const title = document.getElementById('prog-title');
-    if (title) title.textContent = `Round ${msg.round ?? 1} — Programmazione`;
+    if (title) title.textContent = `Round ${msg.round ?? 1}`;
 
     const spamInfo = document.getElementById('spam-count');
-    if (spamInfo) spamInfo.textContent = spamInDeck > 0 ? `⚠ ${spamInDeck} SPAM nel mazzo` : '';
+    if (spamInfo) spamInfo.textContent = spamInDeck > 0 ? `⚠ ${spamInDeck} SPAM` : '';
 
     this._draw(me, CONFIG.cardsDealt);
-    this._startTimer(msg.timerSec ?? CONFIG.programmingTimerSec);
-    UI.show('programming');
+
+    // Mostra il pannello programmazione affiancato alla plancia
+    // (la plancia rimane visibile perché siamo sempre in scr-game)
+    Game.enterProgramming();
     this.render();
-  },
-
-  // ── Timer ──────────────────────────────────────────────────────────────────
-  _startTimer(seconds) {
-    this._stopTimer();
-    this._timerLeft = seconds;
-    this._updateTimerDisplay();
-    if (seconds <= 0) return;
-    this._timerInterval = setInterval(() => {
-      this._timerLeft--;
-      this._updateTimerDisplay();
-      if (this._timerLeft <= 0) { this._stopTimer(); this._autoConfirm(); }
-    }, 1000);
-  },
-
-  _stopTimer() {
-    clearInterval(this._timerInterval);
-    this._timerInterval = null;
-  },
-
-  _updateTimerDisplay() {
-    const el = document.getElementById('prog-timer');
-    if (!el) return;
-    const s = this._timerLeft;
-    el.textContent = s > 0 ? s : '–';
-    el.className = 'prog-timer' + (s <= 10 && s > 0 ? ' urgent' : '');
-  },
-
-  // ── Auto-conferma ─────────────────────────────────────────────────────────
-  // BUG FIX v6: l'approccio precedente usava un Set di tipi carta, che
-  // escludeva TUTTE le copie di un tipo anche se solo 1 era nel registro.
-  // Esempio: hand=[rotateLeft,rotateLeft,move1], P1=rotateLeft
-  //   Prima (SBAGLIATO): spare=[move1] (rotateLeft rimosso completamente)
-  //   Ora (CORRETTO):    spare=[rotateLeft,move1] (solo 1 copia rimossa)
-  _autoConfirm() {
-    const me = State.myPlayer();
-    if (!me || me.confirmed) return;
-
-    // Costruisci pool di carte disponibili togliendo ciò che è già nei registri
-    const available = [...me.hand];
-    for (const r of me.registers) {
-      if (!r) continue;
-      const idx = available.indexOf(r);
-      if (idx !== -1) available.splice(idx, 1);
-    }
-    const pool = this._shuffle(available);
-
-    // Riempi i registri vuoti
-    me.registers = me.registers.map(r => r ?? (pool.shift() ?? null));
-
-    this.render();
-    this.confirm();
+    this.updateOthersStatus();
   },
 
   // ── Interazione carte / registri ──────────────────────────────────────────
@@ -156,14 +114,11 @@ const Cards = {
     if (!me || me.confirmed) return;
     const cardId = me.hand[handIndex];
     if (!cardId) return;
-
     const inRegsCount = me.registers.filter(r => r === cardId).length;
     const inHandCount = me.hand.filter(c => c === cardId).length;
     if (inRegsCount >= inHandCount) return;
-
     const slot = me.registers.indexOf(null);
     if (slot === -1) return;
-
     me.registers[slot] = cardId;
     this.render();
     this._updateConfirmBtn();
@@ -188,13 +143,14 @@ const Cards = {
       return;
     }
     me.confirmed = true;
-    this._stopTimer();
     Net.sendToAll({ type: 'PROGRAM_REGISTERS', registers: me.registers });
-    document.getElementById('prog-status').textContent = 'Confermato! In attesa degli altri…';
+    document.getElementById('prog-status').textContent = '✅ Confermato! In attesa degli altri…';
     document.getElementById('btn-confirm').disabled = true;
     this.render();
+    this.updateOthersStatus();
   },
 
+  // Solo host: raccoglie le conferme e lancia l'esecuzione quando tutti pronti
   onGuestConfirmed(fromId, msg) {
     this._confirmed[fromId] = msg.registers;
     const me = State.myPlayer();
@@ -205,7 +161,46 @@ const Cards = {
     }
   },
 
-  // ── Rendering UI ──────────────────────────────────────────────────────────
+  // ── Stato degli altri giocatori ───────────────────────────────────────────
+  updateOthersStatus() {
+    const el = document.getElementById('others-status');
+    if (!el) return;
+    el.innerHTML = '';
+
+    for (const p of State.getPlayerList()) {
+      const char     = CONFIG.characters.find(c => c.id === p.character);
+      const color    = char?.color ?? '#6b7280';
+      const isMe     = p.id === State.myId;
+      const confirmed = p.confirmed;
+
+      const row = document.createElement('div');
+      row.className = 'other-status-row' + (isMe ? ' is-me' : '');
+      row.innerHTML = `
+        <span class="other-dot" style="background:${color}"></span>
+        <span class="other-name">${(p.nickname || '?').substring(0, 10)}${isMe ? ' (tu)' : ''}</span>
+        <span class="other-conf">${confirmed ? '✅' : '⏳'}</span>
+      `;
+      el.appendChild(row);
+    }
+  },
+
+  // ── Auto-conferma (timer scaduto) — bug fix v6: conta copie ───────────────
+  _autoConfirm() {
+    const me = State.myPlayer();
+    if (!me || me.confirmed) return;
+    const available = [...me.hand];
+    for (const r of me.registers) {
+      if (!r) continue;
+      const idx = available.indexOf(r);
+      if (idx !== -1) available.splice(idx, 1);
+    }
+    const pool = this._shuffle(available);
+    me.registers = me.registers.map(r => r ?? (pool.shift() ?? null));
+    this.render();
+    this.confirm();
+  },
+
+  // ── Rendering ─────────────────────────────────────────────────────────────
   render() {
     const me = State.myPlayer();
     if (!me) return;
@@ -227,11 +222,9 @@ const Cards = {
     const row = document.getElementById('hand-row');
     if (!row) return;
     row.innerHTML = '';
-
     const regCount  = {};
     for (const r of me.registers) if (r) regCount[r] = (regCount[r] || 0) + 1;
     const seenCount = {};
-
     for (let i = 0; i < me.hand.length; i++) {
       const id = me.hand[i];
       seenCount[id] = (seenCount[id] || 0) + 1;
@@ -295,9 +288,21 @@ const Cards = {
   // ── Dispatcher ────────────────────────────────────────────────────────────
   handleGameMessage(fromId, msg) {
     switch (msg.type) {
-      case 'ROUND_START':       this.startRound(msg); break;
-      case 'PROGRAM_REGISTERS': if (State.isHost) this.onGuestConfirmed(fromId, msg); break;
-      case 'EXECUTE_PLAN':      if (!State.isHost) Execution.receive(msg); break;
+      case 'ROUND_START':
+        this.startRound(msg);
+        break;
+
+      case 'PROGRAM_REGISTERS':
+        // Host: raccoglie per esecuzione
+        if (State.isHost) this.onGuestConfirmed(fromId, msg);
+        // Tutti: segna il mittente come "confermato" per l'UI
+        if (State.players[fromId]) State.players[fromId].confirmed = true;
+        this.updateOthersStatus();
+        break;
+
+      case 'EXECUTE_PLAN':
+        if (!State.isHost) Execution.receive(msg);
+        break;
     }
   },
 };

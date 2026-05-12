@@ -1,13 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CONFIG.JS — v6
-//  Tutte le costanti configurabili del gioco.
-//  Modifica questo file per cambiare regole senza toccare la logica.
+//  CONFIG.JS — v6.1
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = Object.freeze({
 
-  // ── Versione
-  version:  '6',
+  version:  '6.1',
   gameName: 'BlindCircuit',
 
   // ── Rete ──────────────────────────────────────────────────────────────────
@@ -21,24 +18,19 @@ const CONFIG = Object.freeze({
   // ── Programmazione ────────────────────────────────────────────────────────
   cardsDealt:          9,
   registersCount:      5,
-  programmingTimerSec: 45,   // aumentato: 30 → 45s per dare più tempo
+  programmingTimerSec: 0,   // 0 = nessun timer — solo il pulsante Conferma
 
   // ── Energia ──────────────────────────────────────────────────────────────
-  startingEnergy: 3,
-  maxEnergy:      10,        // ← MANCAVA: senza questo Math.min() restituiva NaN
-  rechargeAmount: 1,
+  startingEnergy:  3,
+  maxEnergy:       10,
+  rechargeAmount:  1,
 
   // ── Danni ─────────────────────────────────────────────────────────────────
-  spamCardsOnFall: 2,        // ← MANCAVA: senza questo la caduta non aggiungeva SPAM
+  spamCardsOnFall: 2,
   spamOnDamage:    1,
   maxDamage:       5,
 
-  // ── Animazioni esecuzione ─────────────────────────────────────────────────
-  // Aumentati rispetto a prima (550ms) per seguire i movimenti
-  execStepMs:      1500,     // ms tra un registro e il successivo (era 550)
-  execStartDelayMs: 600,     // pausa iniziale prima del primo registro
-
-  // ── Composizione mazzo personale (20 carte totali) ────────────────────────
+  // ── Composizione mazzo ────────────────────────────────────────────────────
   deckComposition: {
     move1:        3,
     move2:        3,
@@ -51,8 +43,7 @@ const CONFIG = Object.freeze({
     recharge:     2,
   },
 
-  // ── Personaggi giocabili ──────────────────────────────────────────────────
-  // sprite: percorso PNG robot (metti i file in assets/robots/ nel tuo progetto)
+  // ── Personaggi ────────────────────────────────────────────────────────────
   characters: [
     { id: 'spin',    name: 'Spin Bot',    color: '#3b82f6', emoji: '🤖', sprite: 'assets/robots/BlueBot.png'   },
     { id: 'hammer',  name: 'Hammer Bot',  color: '#ef4444', emoji: '🦾', sprite: 'assets/robots/RedBot.png'    },
@@ -63,23 +54,23 @@ const CONFIG = Object.freeze({
   ],
 
   // ── Tabellone ─────────────────────────────────────────────────────────────
+  // NOTA: cellSize ridotto a 40 per permettere la visualizzazione affiancata
+  //       con il pannello di programmazione (~780px totali invece di ~860px).
   defaultMap: 'exchange',
-  cellSize:   48,
+  cellSize:   40,
 
-  // ── Immagini tile del tabellone ───────────────────────────────────────────
-  // Percorsi relativi alla root del sito (metti i PNG in assets/tiles/)
+  // ── Immagini tile ─────────────────────────────────────────────────────────
   tileImages: {
     floor_a:    'assets/tiles/pavement_A.png',
     floor_b:    'assets/tiles/pavement_B.png',
     pit:        'assets/tiles/hole.png',
-    conveyor:   'assets/tiles/beltForward1.png',   // nastro normale, orientato verso E → ruotato da codice
-    express:    'assets/tiles/beltForward2.png',   // nastro express,  orientato verso E → ruotato da codice
+    conveyor:   'assets/tiles/beltForward1.png',
+    express:    'assets/tiles/beltForward2.png',
     gear_cw:    'assets/tiles/rotationClockwise.png',
     gear_ccw:   'assets/tiles/rotationCounterClockwise.png',
     recharge:   'assets/tiles/recharge.png',
     push_panel: 'assets/tiles/spring_on.png',
-    laser_src:  'assets/tiles/Laser_A.png',        // sorgente laser, orientato verso E → ruotato da codice
-    // checkpoint per ordine (indice 0 = cp order 1, ecc.)
+    laser_src:  'assets/tiles/Laser_A.png',
     checkpoints: [
       'assets/tiles/Finish1.png',
       'assets/tiles/Finish2.png',
@@ -87,9 +78,11 @@ const CONFIG = Object.freeze({
     ],
   },
 
-  // ── Carte azione ─────────────────────────────────────────────────────────
-  // Percorsi relativi alla root del sito (metti i PNG in assets/cards/)
-  cardFrame: null,   // frame carta — se null, disegna sfondo scuro di fallback
+  // ── Sprite robot ─────────────────────────────────────────────────────────
+  // (ridondante con characters.sprite ma utile per lookup rapido)
+
+  // ── Carte ─────────────────────────────────────────────────────────────────
+  cardFrame: null,
   cardBack:  null,
 
   cards: [
@@ -99,7 +92,7 @@ const CONFIG = Object.freeze({
     { id: 'backUp',      name: 'Indietro',      image: 'assets/cards/Backward1.png', desc: 'Arretra di 1 cella' },
     { id: 'rotateRight', name: 'Gira Destra',   image: 'assets/cards/TurnRight.png', desc: 'Ruota 90° a destra' },
     { id: 'rotateLeft',  name: 'Gira Sinistra', image: 'assets/cards/TurnLeft.png',  desc: 'Ruota 90° a sinistra' },
-    { id: 'uTurn',       name: 'Inversione U',  image: 'assets/cards/TurnU.png',     desc: 'Inversione 180°' },
+    { id: 'uTurn',       name: 'U-Turn',        image: 'assets/cards/TurnU.png',     desc: 'Inversione 180°' },
     { id: 'again',       name: 'Ripeti',        image: 'assets/cards/Repeat.png',    desc: 'Ripete il registro precedente' },
     { id: 'recharge',    name: 'Ricarica',      image: 'assets/cards/Recharge.png',  desc: 'Nessun movimento; +1 energia' },
     { id: 'spam',        name: 'SPAM',          image: null,                          desc: 'Azione casuale dagli scarti' },

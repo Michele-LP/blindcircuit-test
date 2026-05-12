@@ -1,8 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  LOBBY.JS — Schermata lobby pre-partita.
+//  LOBBY.JS — v6.1
 //
-//  FIX v6: startGame() ora costruisce il percorso mappa in modo flessibile.
-//          La mappa viene cercata prima in assets/maps/, poi nella root.
+//  NOVITÀ:
+//  ─ Sezione "Impostazioni partita" visibile solo all'host
+//    (esecuzione Auto/Manuale + velocità animazione)
+//  ─ Le impostazioni vengono incluse in GAME_START e applicate su tutti i client
+//  ─ startGame() cerca la mappa in assets/maps/ poi nella root (fallback)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Lobby = {
@@ -23,12 +26,42 @@ const Lobby = {
 
     this._renderCharacterGrid();
     this.renderPlayerList();
+    this._initGameSettings();
     UI.show('lobby');
+  },
+
+  // ── Impostazioni partita (host only) ──────────────────────────────────────
+  _initGameSettings() {
+    const el = document.getElementById('game-settings');
+    if (!el) return;
+    el.style.display = State.isHost ? 'flex' : 'none';
+    if (!State.isHost) return;
+
+    // Modalità esecuzione
+    el.querySelectorAll('[data-exec-mode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.execMode === (State.execMode ?? 'auto'));
+      btn.addEventListener('click', () => {
+        State.execMode = btn.dataset.execMode;
+        el.querySelectorAll('[data-exec-mode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // Velocità
+    el.querySelectorAll('[data-exec-speed]').forEach(btn => {
+      btn.classList.toggle('active', Number(btn.dataset.execSpeed) === (State.execSpeed ?? 2));
+      btn.addEventListener('click', () => {
+        State.execSpeed = Number(btn.dataset.execSpeed);
+        el.querySelectorAll('[data-exec-speed]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
   },
 
   // ── Handler messaggi ───────────────────────────────────────────────────────
   handleMessage(fromId, msg) {
     switch (msg.type) {
+
       case 'LOBBY_STATE': {
         State.players = msg.players;
         if (!State.players[State.myId]) {
@@ -55,9 +88,7 @@ const Lobby = {
         const id = msg.from ?? fromId;
         if (!State.players[id]) State.players[id] = { id, joinOrder: 99, isHost: false };
         Object.assign(State.players[id], {
-          nickname:  msg.nickname,
-          character: msg.character,
-          ready:     msg.ready,
+          nickname: msg.nickname, character: msg.character, ready: msg.ready,
         });
         this.renderPlayerList();
         this._renderCharacterGrid();
@@ -76,6 +107,9 @@ const Lobby = {
       }
 
       case 'GAME_START': {
+        // Applica impostazioni host prima di iniziare il gioco
+        if (msg.execMode  !== undefined) State.execMode  = msg.execMode;
+        if (msg.execSpeed !== undefined) State.execSpeed = msg.execSpeed;
         Game.init(msg.mapData);
         break;
       }
@@ -99,8 +133,7 @@ const Lobby = {
       const char  = CONFIG.characters.find(c => c.id === p.character);
       const color = char?.color ?? '#4b5563';
       const emoji = char?.emoji ?? '🤖';
-
-      const row = document.createElement('div');
+      const row   = document.createElement('div');
       row.className = ['player-row', p.ready ? 'ready' : '', isMe ? 'is-me' : ''].join(' ').trim();
       row.innerHTML = `
         <div class="player-avatar" style="background:${color}">${emoji}</div>
@@ -127,14 +160,13 @@ const Lobby = {
 
   // ── Griglia personaggi ─────────────────────────────────────────────────────
   _renderCharacterGrid() {
-    const grid  = document.getElementById('character-grid');
+    const grid   = document.getElementById('character-grid');
     grid.innerHTML = '';
     const myChar = State.myPlayer()?.character;
 
     for (const char of CONFIG.characters) {
       const takenBy = Object.values(State.players)
         .find(p => p.character === char.id && p.id !== State.myId);
-
       const btn = document.createElement('button');
       btn.className = ['char-btn', takenBy ? 'taken' : '', myChar === char.id ? 'selected' : ''].join(' ').trim();
       btn.disabled       = !!takenBy;
@@ -173,9 +205,8 @@ const Lobby = {
   toggleReady() {
     const me = State.myPlayer();
     if (!me) return;
-    if (!me.character) { alert('Seleziona prima un personaggio!'); return; }
+    if (!me.character)       { alert('Seleziona prima un personaggio!'); return; }
     if (!me.nickname.trim()) { alert('Inserisci prima il tuo nickname!'); return; }
-
     me.ready = !me.ready;
     const btn  = document.getElementById('btn-ready');
     const text = document.getElementById('ready-text');
@@ -186,14 +217,12 @@ const Lobby = {
     this.renderPlayerList();
   },
 
-  // ── Broadcast stato ───────────────────────────────────────────────────────
   _broadcastMyUpdate() {
     const me = State.myPlayer();
     if (!me) return;
     Net.sendToAll({ type: 'PLAYER_UPDATE', nickname: me.nickname, character: me.character, ready: me.ready });
   },
 
-  // ── Pulsante avvio ─────────────────────────────────────────────────────────
   _updateStartButton() {
     const btn = document.getElementById('btn-start');
     if (!btn || !State.isHost) return;
@@ -207,33 +236,29 @@ const Lobby = {
     if (status) status.textContent = `${readyN}/${count} pronti`;
   },
 
-  // ── Avvio partita (host only) ──────────────────────────────────────────────
-  // Cerca la mappa prima in assets/maps/, poi nella root (fallback).
+  // ── Avvio partita ─────────────────────────────────────────────────────────
   startGame() {
     if (!State.isHost || !State.allReady()) return;
 
-    const mapName = CONFIG.defaultMap;
-    const paths   = [`assets/maps/${mapName}.json`, `${mapName}.json`];
+    const settings = { execMode: State.execMode, execSpeed: State.execSpeed };
 
-    const tryFetch = (remaining) => {
-      if (!remaining.length) {
-        // Nessun file trovato — usa mappa vuota di emergenza
-        console.warn('[Lobby] Mappa non trovata, uso fallback vuoto');
-        Net.broadcast({ type: 'GAME_START', mapData: null });
-        Game.init(null);
+    const tryFetch = (paths) => {
+      if (!paths.length) {
+        Net.broadcast({ type: 'GAME_START', mapData: null, ...settings });
+        Game.init(null, settings);
         return;
       }
-      const path = remaining[0];
-      fetch(path)
-        .then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+      fetch(paths[0])
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(mapData => {
-          Net.broadcast({ type: 'GAME_START', mapData });
-          Game.init(mapData);
+          Net.broadcast({ type: 'GAME_START', mapData, ...settings });
+          Game.init(mapData, settings);
         })
-        .catch(() => tryFetch(remaining.slice(1)));
+        .catch(() => tryFetch(paths.slice(1)));
     };
 
-    tryFetch(paths);
+    const name = CONFIG.defaultMap;
+    tryFetch([`assets/maps/${name}.json`, `${name}.json`]);
   },
 
   _esc(str) {

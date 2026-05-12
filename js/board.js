@@ -11,7 +11,7 @@
 
 const Board = {
 
-  CELL: 48,
+  CELL: 40,
   data: null,
   W:    0,
   H:    0,
