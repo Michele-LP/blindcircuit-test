@@ -46,13 +46,10 @@
     </div>
 
     <div class="lobby-body">
-      <!-- Lista giocatori -->
       <div>
         <div class="section-label">Giocatori</div>
         <div class="player-list" id="player-list"></div>
       </div>
-
-      <!-- Setup personale -->
       <div class="my-setup">
         <div class="setup-field">
           <label for="nickname-input">Nickname</label>
@@ -81,6 +78,7 @@
 
   <!-- ── GAME ──────────────────────────────────────────────────────────── -->
   <div id="scr-game" class="screen">
+
     <div class="game-top-bar">
       <div class="game-hud" id="game-hud"></div>
       <div class="room-code-widget small">
@@ -89,21 +87,25 @@
         <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
       </div>
     </div>
-    <canvas id="canvas" width="600" height="400"></canvas>
-    <div class="hint">← ↑ ↓ → per muovere il tuo robot &nbsp;|&nbsp; <em>Fase 2: griglia e carte in arrivo</em></div>
-  </div>
 
+    <canvas id="canvas" width="576" height="576"></canvas>
+
+    <!--
+      Pannello esecuzione — visibile solo durante l'esecuzione delle carte.
+      Viene popolato da Game.showExecPanel() e svuotato da Game.hideExecPanel().
+    -->
+    <div id="exec-panel" style="display:none"></div>
+
+  </div>
 
   <!-- ── PROGRAMMAZIONE ───────────────────────────────────────────────── -->
   <div id="scr-programming" class="screen">
 
-    <!-- Header -->
     <div class="prog-header">
       <div class="prog-title" id="prog-title">Programmazione</div>
       <div class="prog-timer" id="prog-timer">30</div>
     </div>
 
-    <!-- Registri P1-P5 -->
     <div class="registers-row" id="registers-row">
       <div class="reg-group"><div class="reg-label">P1</div><div class="reg-slot" id="reg-0"></div></div>
       <div class="reg-group"><div class="reg-label">P2</div><div class="reg-slot" id="reg-1"></div></div>
@@ -112,7 +114,6 @@
       <div class="reg-group"><div class="reg-label">P5</div><div class="reg-slot" id="reg-4"></div></div>
     </div>
 
-    <!-- Stato + Conferma -->
     <div class="prog-actions">
       <span class="prog-status" id="prog-status">Scegli 5 carte</span>
       <button class="btn btn-primary" id="btn-confirm" disabled onclick="Cards.confirm()">
@@ -120,8 +121,10 @@
       </button>
     </div>
 
-    <!-- Mano (9 carte) -->
-    <div class="prog-info-row"><div class="hand-label">Mano</div><div class="spam-count" id="spam-count"></div></div>
+    <div class="prog-info-row">
+      <div class="hand-label">Mano</div>
+      <div class="spam-count" id="spam-count"></div>
+    </div>
     <div class="hand-row" id="hand-row"></div>
 
   </div>
@@ -135,7 +138,7 @@
     <button class="btn btn-primary" onclick="UI.goToMenu()">Torna al menu</button>
   </div>
 
-  <!-- ── SCRIPTS (ordine fondamentale) ─────────────────────────────────── -->
+  <!-- ── SCRIPTS ───────────────────────────────────────────────────────── -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/state.js"></script>
@@ -150,12 +153,9 @@
   <!-- ── WIRING EVENTI ─────────────────────────────────────────────────── -->
   <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Badge versione
     const vb = document.getElementById('version-badge');
     if (vb) vb.textContent = `v${CONFIG.version} — ${CONFIG.gameName}`;
 
-
-    // ── Menu ──────────────────────────────────────────────────────────────
     document.getElementById('btn-create').addEventListener('click', () => {
       UI.setStatus('menu-status', 'Connessione al server di signaling…');
       Net.createRoom(
@@ -170,13 +170,9 @@
       document.getElementById('join-input').value = '';
     });
 
-    // ── Join ──────────────────────────────────────────────────────────────
     document.getElementById('btn-do-join').addEventListener('click', () => {
       const code = document.getElementById('join-input').value.trim();
-      if (code.length !== 6) {
-        UI.setStatus('join-status', 'Inserisci 6 caratteri.', 'err');
-        return;
-      }
+      if (code.length !== 6) { UI.setStatus('join-status', 'Inserisci 6 caratteri.', 'err'); return; }
       UI.setStatus('join-status', 'Connessione in corso…');
       Net.joinRoom(code,
         ()    => { UI.setStatus('join-status', ''); Lobby.init(); },
@@ -190,7 +186,6 @@
 
     document.getElementById('btn-back-join').addEventListener('click', UI.goToMenu.bind(UI));
 
-    // ── Lobby ─────────────────────────────────────────────────────────────
     document.getElementById('btn-copy-code').addEventListener('click', async () => {
       await UI.copyText(State.roomCode);
       UI.flashButton(document.getElementById('btn-copy-code'), '✓', 1200);
@@ -204,12 +199,10 @@
     document.getElementById('btn-start').addEventListener('click', () => Lobby.startGame());
     document.getElementById('btn-leave').addEventListener('click', UI.goToMenu.bind(UI));
 
-    // ── Game ──────────────────────────────────────────────────────────────
     document.getElementById('btn-copy-code-game').addEventListener('click', async () => {
       await UI.copyText(State.roomCode);
       UI.flashButton(document.getElementById('btn-copy-code-game'), '✓', 1200);
     });
-
   });
   </script>
 
