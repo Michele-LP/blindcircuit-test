@@ -11,7 +11,7 @@
 
 const Board = {
 
-  CELL: 40,
+  CELL: CONFIG.cellSize,
   data: null,
   W:    0,
   H:    0,

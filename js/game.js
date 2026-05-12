@@ -1,29 +1,28 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — v6.1
+//  GAME.JS — v6.2
 //
 //  NOVITÀ:
-//  ─ CELL letto da CONFIG.cellSize (40px anziché 48px)
-//  ─ lerp dinamico in base a State.execSpeed (più veloce = lerp più alto)
-//  ─ enterProgramming() / enterExecution() gestiscono il pannello laterale
-//  ─ showExecPanel / highlightRegister / hideExecPanel: pannello esecuzione
-//  ─ showAdvanceButton / init btn-skip-round
-//  ─ Sprite PNG per i robot (fallback disegnato se PNG non disponibile)
+//  ─ _computeCellSize(): dimensione cella calcolata dallo spazio disponibile
+//    → mappa grande quanto possibile, si adatta automaticamente a schermi diversi
+//    → funziona con qualsiasi dimensione di mappa futura
+//  ─ SZ = CELL * 0.85 → robot più grandi e visibili
+//  ─ HUD con immagine robot reale + energia + ★ checkpoint, aggiornati ogni frame
+//  ─ Pulsante "Salta round" rinominato con tooltip esplicativo
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
 
-  let CELL = CONFIG.cellSize;   // 40px
-  const SZ = Math.round(CELL * 0.75); // ~30px sprite robot
+  // Mutabili: ricalcolati in init() per ogni mappa
+  let CELL = CONFIG.cellSize;
+  let SZ   = Math.round(CELL * 0.85);
 
-  // Lerp in base alla velocità: lento → robot si muove piano; test → si teletrasporta
   const LERP_BY_SPEED = [0.07, 0.12, 0.18, 0.30];
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
-
-  const anim       = {};
+  const anim   = {};
   const _robotImgs = {};
-  const DIR_ANGLE  = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
+  const DIR_ANGLE = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
@@ -42,16 +41,44 @@ const Game = (() => {
     }
   }
 
+  // ── Calcola la dimensione ottimale della cella ────────────────────────────
+  //
+  // Obiettivo: la mappa deve occupare tutto lo spazio disponibile, senza
+  // essere più grande della viewport. Si adatta sia al numero di celle
+  // (mapW × mapH) sia alla risoluzione dello schermo.
+  //
+  // Layout: [canvas] [sidebar 260px] con gap 16px e padding corpo 32px.
+  // L'altezza tiene conto della top bar (~56px) e dei controlli (~40px).
+  //
+  function _computeCellSize(mapW, mapH) {
+    const SIDEBAR   = 260 + 16;  // pannello laterale + gap
+    const PAD_H     = 32;        // padding orizzontale body (2×16)
+    const OVERHEAD_V = 56 + 40 + 32; // top-bar + controlli + padding verticale
+
+    // Larghezza disponibile per il canvas (limitata al container max 1200px)
+    const maxContainerW = 1200 - PAD_H;
+    const screenW       = window.innerWidth - PAD_H;
+    const availW = Math.max(300, Math.min(screenW, maxContainerW) - SIDEBAR);
+
+    // Altezza disponibile per il canvas
+    const availH = Math.max(300, window.innerHeight - OVERHEAD_V);
+
+    const byW = Math.floor(availW / mapW);
+    const byH = Math.floor(availH / mapH);
+
+    // Prende il minore per garantire che la mappa stia in entrambe le dimensioni
+    // Min 36px (leggibile), max 80px (non esagerato)
+    return Math.max(36, Math.min(byW, byH, 80));
+  }
+
   function preloadRobotSprites() {
     for (const char of CONFIG.characters) {
-      if (!char.sprite) continue;
+      if (!char.sprite || _robotImgs[char.id]) continue;
       const img = new Image();
       img.src = char.sprite;
       _robotImgs[char.id] = img;
     }
   }
-
-  // ─── Pannello laterale: helpers ─────────────────────────────────────────
 
   function setPanels(showProg, showExec) {
     const pp = document.getElementById('prog-panel');
@@ -60,18 +87,45 @@ const Game = (() => {
     if (ep) ep.style.display = showExec ? 'flex' : 'none';
   }
 
-  // ───────────────────────────────────────────────────────────────────────
+  // ── Costruisce un elemento immagine robot con fallback emoji ──────────────
+  function _makeRobotImg(char, cssClass) {
+    if (char?.sprite) {
+      const img = document.createElement('img');
+      img.className = cssClass;
+      img.src = char.sprite;
+      img.alt = char.name;
+      img.onerror = function() {
+        this.style.display = 'none';
+        const fb = document.createElement('span');
+        fb.className = cssClass.replace('-img', '-emoji');
+        fb.textContent = char.emoji;
+        this.parentElement?.appendChild(fb);
+      };
+      return img;
+    }
+    const em = document.createElement('span');
+    em.className = cssClass.replace('-img', '-emoji');
+    em.textContent = char?.emoji ?? '🤖';
+    return em;
+  }
 
+  // ═══════════════════════════════════════════════════════════════════════════
   return {
 
-    // ── Inizializzazione (chiamato da Lobby quando GAME_START arriva) ───────
     init(mapData, settings = {}) {
-      // Applica impostazioni host (già in State per i guest, qui per l'host stesso)
       if (settings.execMode  !== undefined) State.execMode  = settings.execMode;
       if (settings.execSpeed !== undefined) State.execSpeed = settings.execSpeed;
 
-      CELL = CONFIG.cellSize;
+      // 1. Dimensioni mappa
+      const mapW = mapData?.width  ?? 12;
+      const mapH = mapData?.height ?? 12;
 
+      // 2. Calcolo dimensione ottimale della cella
+      CELL = _computeCellSize(mapW, mapH);
+      SZ   = Math.round(CELL * 0.85);
+
+      // 3. Board: imposta CELL PRIMA di load() (che usa CELL per calcolare W/H)
+      Board.CELL = CELL;
       Board.load(mapData);
       Board.preloadImages();
       preloadRobotSprites();
@@ -82,10 +136,14 @@ const Game = (() => {
       canvas.width  = Board.W;
       canvas.height = Board.H;
 
+      // 4. Adatta il pannello laterale all'altezza del canvas
+      const gameSide = document.getElementById('game-side');
+      if (gameSide) gameSide.style.maxHeight = `${Board.H}px`;
+
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
         p.cx  = sp.x; p.cy  = sp.y; p.dir = sp.dir ?? 'N';
-        p.energy = p.energy ?? CONFIG.startingEnergy;
+        p.energy         = p.energy ?? CONFIG.startingEnergy;
         p.lastCheckpoint = 0;
         p.checkpoints    = [];
         initAnim(p);
@@ -96,17 +154,20 @@ const Game = (() => {
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
 
-      // Pulsante "Round Successivo" — solo host, sempre visibile in game
-      const skipBtn = document.getElementById('btn-skip-round');
-      if (skipBtn) {
-        skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
-        skipBtn.onclick = () => Execution.skipToNextRound();
-      }
-
+      // Pulsante "Avanti →" (modalità manuale)
       const advBtn = document.getElementById('btn-advance');
       if (advBtn) {
         advBtn.style.display = 'none';
         advBtn.onclick = () => Execution.advance();
+      }
+
+      // Pulsante "Salta round" — solo host, scopo: testing
+      const skipBtn = document.getElementById('btn-skip-round');
+      if (skipBtn) {
+        skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
+        skipBtn.textContent   = '⏭ Salta round';
+        skipBtn.title         = 'Salta l\'esecuzione corrente e avvia il round successivo — utile durante lo sviluppo per testare rapidamente senza aspettare l\'animazione';
+        skipBtn.onclick       = () => Execution.skipToNextRound();
       }
 
       setPanels(false, false);
@@ -123,7 +184,7 @@ const Game = (() => {
       }
     },
 
-    // ── Game loop ─────────────────────────────────────────────────────────
+    // ── Game loop ──────────────────────────────────────────────────────────
     _loop() {
       this._updateAnim();
       this._render();
@@ -150,25 +211,27 @@ const Game = (() => {
         const a = anim[p.id];
         if (a) this._drawRobot(p, a.renderX, a.renderY, a.renderAngle);
       }
+      // Aggiorna energia e checkpoint nelle card HUD ogni frame (operazione leggera)
+      this._updateHudSubs();
     },
 
     _drawRobot(p, rx, ry, angle) {
-      const isMe  = p.id === State.myId;
-      const char  = CONFIG.characters.find(c => c.id === p.character);
-      const col   = char?.color ?? '#6b7280';
-      const cx    = rx + CELL / 2;
-      const cy    = ry + CELL / 2;
-      const half  = SZ / 2;
+      const isMe = p.id === State.myId;
+      const char = CONFIG.characters.find(c => c.id === p.character);
+      const col  = char?.color ?? '#6b7280';
+      const cx   = rx + CELL / 2;
+      const cy   = ry + CELL / 2;
+      const half = SZ / 2;
 
       // Ombra
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
-      ctx.ellipse(cx, cy + half + 4, half - 2, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + half + 3, half - 2, 4, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // Sprite PNG se disponibile e caricata
+      // Sprite PNG (se disponibile e caricata)
       const spriteImg = char ? _robotImgs[char.id] : null;
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
         ctx.save();
@@ -181,11 +244,11 @@ const Game = (() => {
           ctx.translate(cx, cy);
           ctx.rotate(angle);
           this._rrect(ctx, -half, -half, SZ, SZ, 6);
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
         }
       } else {
-        // Fallback disegnato
+        // Fallback: robot disegnato con canvas
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle);
@@ -193,10 +256,10 @@ const Game = (() => {
         ctx.fillStyle = col; ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath();
-        ctx.moveTo(0, -half + 4); ctx.lineTo(-5, -half + 12); ctx.lineTo(5, -half + 12);
+        ctx.moveTo(0, -half+4); ctx.lineTo(-6, -half+14); ctx.lineTo(6, -half+14);
         ctx.closePath(); ctx.fill();
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(-half+5, 2, 6, 5); ctx.fillRect(half-11, 2, 6, 5);
+        ctx.fillRect(-half+6, 2, 7, 6); ctx.fillRect(half-13, 2, 7, 6);
         if (isMe) {
           this._rrect(ctx, -half, -half, SZ, SZ, 6);
           ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.stroke();
@@ -204,20 +267,19 @@ const Game = (() => {
         ctx.restore();
       }
 
-      // Etichetta fuori dalla rotazione
+      // Etichetta (fuori dalla rotazione)
       ctx.fillStyle    = isMe ? '#e6edf3' : '#9ca3af';
-      ctx.font         = `bold ${Math.max(8, CELL * 0.22)}px system-ui`;
+      ctx.font         = `bold ${Math.max(9, Math.round(CELL * 0.2))}px system-ui`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillText(
         (p.nickname || '?').substring(0, 8) + (p.energy != null ? ` ⚡${p.energy}` : ''),
         cx, ry - 2
       );
-
       const cps = p.checkpoints ?? [];
       if (cps.length) {
         ctx.textBaseline = 'top';
-        ctx.font = `${CELL * 0.22}px system-ui`;
+        ctx.font = `${Math.round(CELL * 0.2)}px system-ui`;
         ctx.fillText('★'.repeat(cps.length), cx, ry + SZ + 3);
       }
     },
@@ -232,16 +294,66 @@ const Game = (() => {
       ctx.closePath();
     },
 
-    // ── Mostra pannello programmazione ────────────────────────────────────
+    // ── HUD: card per ogni giocatore con sprite robot ─────────────────────
+    _buildHud() {
+      const hud = document.getElementById('game-hud');
+      if (!hud) return;
+      hud.innerHTML = '';
+
+      for (const p of State.getPlayerList()) {
+        const char  = CONFIG.characters.find(c => c.id === p.character);
+        const color = char?.color ?? '#6b7280';
+        const isMe  = p.id === State.myId;
+
+        const card = document.createElement('div');
+        card.className = 'hud-card' + (isMe ? ' is-me' : '');
+        card.dataset.pid = p.id;
+
+        // Contenitore immagine robot
+        const wrap = document.createElement('div');
+        wrap.className = 'hud-robot-wrap';
+        wrap.style.cssText = `background:${color}22;border:1px solid ${color}55;`;
+        wrap.appendChild(_makeRobotImg(char, 'hud-robot-img'));
+        card.appendChild(wrap);
+
+        // Testo
+        const info = document.createElement('div');
+        info.className = 'hud-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'hud-name';
+        nameEl.textContent = (p.nickname || '?').substring(0, 10) + (isMe ? ' (tu)' : '');
+
+        const subEl = document.createElement('div');
+        subEl.className = 'hud-sub';
+        subEl.id = `hud-sub-${p.id}`;
+        subEl.textContent = `⚡${p.energy ?? CONFIG.startingEnergy}`;
+
+        info.appendChild(nameEl);
+        info.appendChild(subEl);
+        card.appendChild(info);
+        hud.appendChild(card);
+      }
+    },
+
+    // Aggiorna solo la riga energia/checkpoint (chiamata ogni frame, leggera)
+    _updateHudSubs() {
+      for (const p of State.getPlayerList()) {
+        const el = document.getElementById(`hud-sub-${p.id}`);
+        if (!el) continue;
+        const cp = (p.checkpoints ?? []).length;
+        el.textContent = `⚡${p.energy ?? CONFIG.startingEnergy}${cp > 0 ? ' ' + '★'.repeat(cp) : ''}`;
+      }
+    },
+
+    // ── Pannello laterale ──────────────────────────────────────────────────
     enterProgramming() {
       setPanels(true, false);
       this.showAdvanceButton(false);
     },
 
-    // ── Pannello esecuzione ───────────────────────────────────────────────
     showExecPanel(registers) {
       setPanels(false, true);
-
       const ep = document.getElementById('exec-panel');
       if (!ep) return;
       ep.innerHTML = '';
@@ -268,7 +380,6 @@ const Game = (() => {
 
         const regsEl = document.createElement('div');
         regsEl.className = 'exec-registers';
-
         for (let i = 0; i < CONFIG.registersCount; i++) {
           const cardId = regs[i] ?? null;
           const def    = CONFIG.cards.find(c => c.id === cardId);
@@ -313,7 +424,6 @@ const Game = (() => {
       if (btn) btn.style.display = show ? 'inline-flex' : 'none';
     },
 
-    // ── Message routing ────────────────────────────────────────────────────
     handleMessage(fromId, msg) {
       if (msg.type === 'MOVE') {
         const p = State.players[msg.from ?? fromId];
@@ -321,21 +431,6 @@ const Game = (() => {
         return;
       }
       Cards.handleGameMessage(fromId, msg);
-    },
-
-    _buildHud() {
-      const hud = document.getElementById('game-hud');
-      hud.innerHTML = '';
-      for (const p of State.getPlayerList()) {
-        const char  = CONFIG.characters.find(c => c.id === p.character);
-        const color = char?.color ?? '#6b7280';
-        const isMe  = p.id === State.myId;
-        const tag   = document.createElement('div');
-        tag.className = 'player-tag' + (isMe ? ' is-me' : '');
-        tag.innerHTML = `<div class="swatch" style="background:${color}"></div>
-          <span>${(p.nickname||'?').substring(0,10)}${isMe?' (tu)':''}</span>`;
-        hud.appendChild(tag);
-      }
     },
   };
 })();

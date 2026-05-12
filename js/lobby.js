@@ -1,11 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  LOBBY.JS — v6.1
+//  LOBBY.JS — v6.2
 //
 //  NOVITÀ:
-//  ─ Sezione "Impostazioni partita" visibile solo all'host
-//    (esecuzione Auto/Manuale + velocità animazione)
-//  ─ Le impostazioni vengono incluse in GAME_START e applicate su tutti i client
-//  ─ startGame() cerca la mappa in assets/maps/ poi nella root (fallback)
+//  ─ _renderCharacterGrid(): mostra le immagini PNG dei robot al posto delle emoji
+//    (fallback all'emoji se l'immagine non carica)
+//  ─ renderPlayerList(): avatar con immagine robot reale
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Lobby = {
@@ -30,14 +29,13 @@ const Lobby = {
     UI.show('lobby');
   },
 
-  // ── Impostazioni partita (host only) ──────────────────────────────────────
+  // ── Impostazioni partita (solo host) ──────────────────────────────────────
   _initGameSettings() {
     const el = document.getElementById('game-settings');
     if (!el) return;
     el.style.display = State.isHost ? 'flex' : 'none';
     if (!State.isHost) return;
 
-    // Modalità esecuzione
     el.querySelectorAll('[data-exec-mode]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.execMode === (State.execMode ?? 'auto'));
       btn.addEventListener('click', () => {
@@ -47,7 +45,6 @@ const Lobby = {
       });
     });
 
-    // Velocità
     el.querySelectorAll('[data-exec-speed]').forEach(btn => {
       btn.classList.toggle('active', Number(btn.dataset.execSpeed) === (State.execSpeed ?? 2));
       btn.addEventListener('click', () => {
@@ -107,7 +104,6 @@ const Lobby = {
       }
 
       case 'GAME_START': {
-        // Applica impostazioni host prima di iniziare il gioco
         if (msg.execMode  !== undefined) State.execMode  = msg.execMode;
         if (msg.execSpeed !== undefined) State.execSpeed = msg.execSpeed;
         Game.init(msg.mapData);
@@ -122,7 +118,7 @@ const Lobby = {
     }
   },
 
-  // ── Render lista giocatori ─────────────────────────────────────────────────
+  // ── Lista giocatori ────────────────────────────────────────────────────────
   renderPlayerList() {
     const list = document.getElementById('player-list');
     list.innerHTML = '';
@@ -132,23 +128,51 @@ const Lobby = {
       const isMe  = p.id === State.myId;
       const char  = CONFIG.characters.find(c => c.id === p.character);
       const color = char?.color ?? '#4b5563';
-      const emoji = char?.emoji ?? '🤖';
-      const row   = document.createElement('div');
+
+      const row = document.createElement('div');
       row.className = ['player-row', p.ready ? 'ready' : '', isMe ? 'is-me' : ''].join(' ').trim();
-      row.innerHTML = `
-        <div class="player-avatar" style="background:${color}">${emoji}</div>
-        <div class="player-info">
-          <span class="player-name">
-            ${this._esc(p.nickname || '(senza nome)')}
-            ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
-          </span>
-          <span class="player-char">${char?.name ?? 'Nessun personaggio'}</span>
-        </div>
-        <div class="ready-indicator">${p.ready ? '✅ Pronto' : '⏳ Attesa'}</div>
+
+      // Avatar: immagine robot o emoji come fallback
+      const avatar = document.createElement('div');
+      avatar.className = 'player-avatar';
+      avatar.style.background = color;
+
+      if (char?.sprite) {
+        const img = document.createElement('img');
+        img.className = 'avatar-bot-img';
+        img.src = char.sprite;
+        img.alt = char.name;
+        img.onerror = function() {
+          this.style.display = 'none';
+          avatar.textContent = char.emoji;
+        };
+        avatar.appendChild(img);
+      } else {
+        avatar.textContent = char?.emoji ?? '🤖';
+      }
+      row.appendChild(avatar);
+
+      // Info testo
+      const info = document.createElement('div');
+      info.className = 'player-info';
+      info.innerHTML = `
+        <span class="player-name">
+          ${this._esc(p.nickname || '(senza nome)')}
+          ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
+        </span>
+        <span class="player-char">${char?.name ?? 'Nessun personaggio'}</span>
       `;
+      row.appendChild(info);
+
+      const readyInd = document.createElement('div');
+      readyInd.className = 'ready-indicator';
+      readyInd.textContent = p.ready ? '✅ Pronto' : '⏳ Attesa';
+      row.appendChild(readyInd);
+
       list.appendChild(row);
     }
 
+    // Slot vuoti
     const free = CONFIG.maxPlayers - players.length;
     for (let i = 0; i < Math.min(free, 2); i++) {
       const row = document.createElement('div');
@@ -158,26 +182,75 @@ const Lobby = {
     }
   },
 
-  // ── Griglia personaggi ─────────────────────────────────────────────────────
+  // ── Griglia personaggi con immagini robot reali ───────────────────────────
+  //
+  // Logica di visualizzazione:
+  // 1. Se char.sprite esiste: mostra l'immagine PNG del robot
+  //    → onerror: nasconde l'immagine, mostra l'emoji come fallback
+  // 2. Se char.sprite è null: mostra subito l'emoji
+  //
+  // La selezione esclusiva (un solo giocatore per personaggio) è gestita
+  // tramite il flag `taken`: il pulsante è disabilitato e appare semi-trasparente.
+  //
   _renderCharacterGrid() {
     const grid   = document.getElementById('character-grid');
     grid.innerHTML = '';
     const myChar = State.myPlayer()?.character;
 
     for (const char of CONFIG.characters) {
+      // Cerca se un ALTRO giocatore ha già questo personaggio
       const takenBy = Object.values(State.players)
         .find(p => p.character === char.id && p.id !== State.myId);
+
       const btn = document.createElement('button');
-      btn.className = ['char-btn', takenBy ? 'taken' : '', myChar === char.id ? 'selected' : ''].join(' ').trim();
+      btn.className = ['char-btn',
+        takenBy            ? 'taken'    : '',
+        myChar === char.id ? 'selected' : '',
+      ].join(' ').trim();
       btn.disabled       = !!takenBy;
       btn.dataset.charId = char.id;
-      btn.title          = takenBy ? `Usato da ${takenBy.nickname || 'un altro'}` : char.name;
+      btn.title          = takenBy
+        ? `Scelto da ${takenBy.nickname || 'un altro giocatore'}`
+        : char.name;
       btn.style.setProperty('--char-color', char.color);
-      btn.innerHTML = `
-        <span class="char-emoji">${char.emoji}</span>
-        <span class="char-name">${char.name}</span>
-      `;
-      btn.addEventListener('click', () => { if (!takenBy) this._selectCharacter(char.id); });
+
+      // Immagine robot
+      const spriteWrap = document.createElement('div');
+      spriteWrap.className = 'char-sprite-wrap';
+
+      if (char.sprite) {
+        const img = document.createElement('img');
+        img.className = 'char-sprite-img';
+        img.src = char.sprite;
+        img.alt = char.name;
+        img.draggable = false;
+        img.onerror = function() {
+          // Fallback: nascondi img e mostra emoji
+          this.style.display = 'none';
+          const em = document.createElement('span');
+          em.className = 'char-emoji';
+          em.textContent = char.emoji;
+          spriteWrap.appendChild(em);
+        };
+        spriteWrap.appendChild(img);
+      } else {
+        const em = document.createElement('span');
+        em.className = 'char-emoji';
+        em.textContent = char.emoji;
+        spriteWrap.appendChild(em);
+      }
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'char-name';
+      nameSpan.textContent = char.name;
+
+      btn.appendChild(spriteWrap);
+      btn.appendChild(nameSpan);
+
+      btn.addEventListener('click', () => {
+        if (!takenBy) this._selectCharacter(char.id);
+      });
+
       grid.appendChild(btn);
     }
   },
@@ -239,9 +312,7 @@ const Lobby = {
   // ── Avvio partita ─────────────────────────────────────────────────────────
   startGame() {
     if (!State.isHost || !State.allReady()) return;
-
     const settings = { execMode: State.execMode, execSpeed: State.execSpeed };
-
     const tryFetch = (paths) => {
       if (!paths.length) {
         Net.broadcast({ type: 'GAME_START', mapData: null, ...settings });
@@ -256,15 +327,13 @@ const Lobby = {
         })
         .catch(() => tryFetch(paths.slice(1)));
     };
-
-    const name = CONFIG.defaultMap;
-    tryFetch([`assets/maps/${name}.json`, `${name}.json`]);
+    tryFetch([`assets/maps/${CONFIG.defaultMap}.json`, `${CONFIG.defaultMap}.json`]);
   },
 
   _esc(str) {
     return String(str)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   },
 };
 
