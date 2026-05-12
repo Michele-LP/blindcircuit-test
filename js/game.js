@@ -18,6 +18,12 @@ const Game = (() => {
 
   const LERP_BY_SPEED = [0.07, 0.12, 0.18, 0.30];
 
+  // I PNG dei robot sono orientati verso Sud (giù) per default.
+  // Il sistema di rotazione usa Est (destra) = 0°.
+  // Offset -π/2 compensa: ruota lo sprite di -90° prima di applicare
+  // la direzione del robot → Sud + (-90°) = Est = orientamento base corretto.
+  const SPRITE_ROT_OFFSET = -Math.PI / 2;
+
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
   const anim   = {};
@@ -236,13 +242,13 @@ const Game = (() => {
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.rotate(angle);
+        ctx.rotate(angle + SPRITE_ROT_OFFSET);
         ctx.drawImage(spriteImg, -half, -half, SZ, SZ);
         ctx.restore();
         if (isMe) {
           ctx.save();
           ctx.translate(cx, cy);
-          ctx.rotate(angle);
+          ctx.rotate(angle + SPRITE_ROT_OFFSET);
           this._rrect(ctx, -half, -half, SZ, SZ, 6);
           ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
