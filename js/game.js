@@ -18,12 +18,6 @@ const Game = (() => {
 
   const LERP_BY_SPEED = [0.07, 0.12, 0.18, 0.30];
 
-  // I PNG dei robot sono orientati verso Sud (giù) per default.
-  // Il sistema di rotazione usa Est (destra) = 0°.
-  // Offset -π/2 compensa: ruota lo sprite di -90° prima di applicare
-  // la direzione del robot → Sud + (-90°) = Est = orientamento base corretto.
-  const SPRITE_ROT_OFFSET = -Math.PI / 2;
-
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
   const anim   = {};
@@ -188,6 +182,15 @@ const Game = (() => {
           Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0 });
         }, 1000);
       }
+      // Non-host: chiedi sincronizzazione posizioni ogni 2.5 secondi.
+      // Recupera eventuali aggiornamenti persi via WebRTC.
+      if (!State.isHost) {
+        setInterval(() => {
+          if (State.phase === 'game') {
+            Net.send({ type: 'REQUEST_SYNC' });
+          }
+        }, 2500);
+      }
     },
 
     // ── Game loop ──────────────────────────────────────────────────────────
@@ -242,13 +245,13 @@ const Game = (() => {
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.rotate(angle + SPRITE_ROT_OFFSET);
+        ctx.rotate(angle);
         ctx.drawImage(spriteImg, -half, -half, SZ, SZ);
         ctx.restore();
         if (isMe) {
           ctx.save();
           ctx.translate(cx, cy);
-          ctx.rotate(angle + SPRITE_ROT_OFFSET);
+          ctx.rotate(angle);
           this._rrect(ctx, -half, -half, SZ, SZ, 6);
           ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
@@ -431,6 +434,38 @@ const Game = (() => {
     },
 
     handleMessage(fromId, msg) {
+      // Host: riceve richiesta di sync → manda lo stato attuale di tutti i robot
+      if (msg.type === 'REQUEST_SYNC' && State.isHost) {
+        const positions = {};
+        for (const [id, p] of Object.entries(State.players)) {
+          positions[id] = {
+            cx:          p.cx,
+            cy:          p.cy,
+            dir:         p.dir,
+            energy:      p.energy,
+            checkpoints: p.checkpoints ?? [],
+            lastCheckpoint: p.lastCheckpoint ?? 0,
+          };
+        }
+        Net.sendTo(fromId, { type: 'SYNC_STATE', positions });
+        return;
+      }
+
+      // Client: riceve lo stato sincronizzato dall'host → aggiorna le posizioni
+      if (msg.type === 'SYNC_STATE') {
+        for (const [id, pos] of Object.entries(msg.positions ?? {})) {
+          const p = State.players[id];
+          if (!p) continue;
+          p.cx  = pos.cx;
+          p.cy  = pos.cy;
+          p.dir = pos.dir;
+          if (pos.energy          !== undefined) p.energy          = pos.energy;
+          if (pos.checkpoints     !== undefined) p.checkpoints     = pos.checkpoints;
+          if (pos.lastCheckpoint  !== undefined) p.lastCheckpoint  = pos.lastCheckpoint;
+        }
+        return;
+      }
+      
       if (msg.type === 'MOVE') {
         const p = State.players[msg.from ?? fromId];
         if (p) { p.cx = msg.cx; p.cy = msg.cy; p.dir = msg.dir ?? p.dir; }
