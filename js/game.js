@@ -52,7 +52,7 @@ const Game = (() => {
   function _computeCellSize(mapW, mapH) {
     const LEFT_W  = 180 + 12;
     const RIGHT_W = 260 + 16;
-    const H_PAD   = 40;
+    const H_PAD   = 80;
     const V_PAD   = 40;
 
     const screenW  = window.innerWidth  - H_PAD;
@@ -114,7 +114,7 @@ const Game = (() => {
       const mapH = mapData?.height ?? 12;
 
       CELL = _computeCellSize(mapW, mapH);
-      SZ   = Math.round(CELL * 0.85);
+      SZ   = Math.round(CELL * 1); //0.85);
 
       Board.CELL = CELL;
       Board.load(mapData);

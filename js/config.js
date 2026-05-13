@@ -78,6 +78,8 @@ const CONFIG = Object.freeze({
     ],
   },
 
+  //Background img
+  boardBackground: 'assets/img/Blind_Circuit.jpg',
   // ── Sprite robot ─────────────────────────────────────────────────────────
   // (ridondante con characters.sprite ma utile per lookup rapido)
 

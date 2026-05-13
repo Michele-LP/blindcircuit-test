@@ -51,6 +51,13 @@ const Board = {
     // Tile semplici
     const simpleKeys = ['floor_a','floor_b','pit','conveyor','express',
                         'gear_cw','gear_ccw','recharge','push_panel','laser_src'];
+
+    if (CONFIG.boardBackground) {
+      const bg = new Image();
+      bg.onload = () => { this._cache = null; };
+      bg.src = CONFIG.boardBackground;
+      this._imgs['board_bg'] = bg;
+    }
     for (const k of simpleKeys) {
       if (ti[k]) toLoad.push([k, ti[k]]);
     }
@@ -96,7 +103,14 @@ const Board = {
   _buildCache(ctx) {
     const { width, height } = this.data;
 
-    ctx.fillStyle = '#161b22';
+    //ctx.fillStyle = '#161b22';
+    const bgImg = this._imgs['board_bg'];
+    if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+      ctx.drawImage(bgImg, 0, 0, this.W, this.H);
+    } else {
+      ctx.fillStyle = '#161b22';
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
     ctx.fillRect(0, 0, this.W, this.H);
 
     for (let cy = 0; cy < height; cy++)
