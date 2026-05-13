@@ -22,14 +22,16 @@
 
   <!-- ── JOIN ──────────────────────────────────────────────────────────── -->
   <div id="scr-join" class="screen">
-    <div class="subtitle">Inserisci il codice della partita</div>
-    <input id="join-input" class="code-input" type="text" maxlength="6" placeholder="ABC123"
-      oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')" />
-    <div class="btn-row">
-      <button class="btn btn-primary"   id="btn-do-join">Entra</button>
-      <button class="btn btn-secondary" id="btn-back-join">← Indietro</button>
+    <div class="join-card">
+      <div class="subtitle">Inserisci il codice della partita</div>
+      <input id="join-input" class="code-input" type="text" maxlength="6" placeholder="ABC123"
+        oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')" />
+      <div class="btn-row">
+        <button class="btn btn-primary"   id="btn-do-join">Entra</button>
+        <button class="btn btn-secondary" id="btn-back-join">← Indietro</button>
+      </div>
+      <div class="status" id="join-status"></div>
     </div>
-    <div class="status" id="join-status"></div>
   </div>
 
   <!-- ── LOBBY ─────────────────────────────────────────────────────────── -->
