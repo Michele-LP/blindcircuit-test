@@ -16,9 +16,22 @@
 //    from:  string       — aggiunto dall'host durante il relay (peerId mittente)
 //    ...payload specifico del tipo
 //  }
+//
+//  FIX v6.3.1:
+//  ─ joinOrder: rimosso calcolo tramite Object.keys(State.conns).length
+//    che in caso di connessioni quasi-simultanee poteva assegnare lo stesso
+//    joinOrder a due guest diversi. Sostituito con un contatore atomico
+//    _nextJoinOrder che viene incrementato ad ogni nuova connessione.
+//  ─ _dispatch: aggiunto log di warning per i messaggi ignorati in fase 'menu'
+//    (era silenzioso, rendeva il debug molto difficile).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Net = {
+
+  // Contatore usato dall'host per assegnare joinOrder univoci.
+  // Host = 0 (hardcoded in createRoom), guest = 1, 2, 3, ...
+  // Separato da State per non doverlo resettare manualmente (State.reset lo ignora).
+  _nextJoinOrder: 1,
 
   // ── Genera codice stanza 6 caratteri (no caratteri ambigui 0/O, 1/I) ─────
   _genCode() {
@@ -34,6 +47,9 @@ const Net = {
   createRoom(onReady, onError) {
     const code   = this._genCode();
     const peerId = CONFIG.peerPrefix + code.toLowerCase();
+
+    // Reset contatore joinOrder per questa partita
+    this._nextJoinOrder = 1;
 
     State.isHost   = true;
     State.roomCode = code;
@@ -107,8 +123,13 @@ const Net = {
     const guestId = conn.peer;
 
     conn.on('open', () => {
-      // 1. Crea l'entry per il nuovo guest
-      const joinOrder = Object.keys(State.conns).length; // host=0, guest1=1, ecc.
+      // FIX: joinOrder ora usa un contatore atomico invece di
+      // Object.keys(State.conns).length, che poteva assegnare lo stesso
+      // valore a due guest che si connettevano quasi-simultaneamente
+      // (entrambe le connessioni venivano aggiunte a State.conns prima
+      // che il loro evento 'open' scattasse).
+      const joinOrder = this._nextJoinOrder++;
+
       const newPlayer = {
         id:        guestId,
         nickname:  '',
@@ -121,8 +142,8 @@ const Net = {
 
       // 2. Invia al nuovo guest lo stato completo della lobby
       this.sendTo(guestId, {
-        type:             'LOBBY_STATE',
-        players:          State.players,
+        type:              'LOBBY_STATE',
+        players:           State.players,
         assignedJoinOrder: joinOrder,
       });
 
@@ -221,6 +242,13 @@ const Net = {
       if (typeof Lobby !== 'undefined') Lobby.handleMessage(fromId, msg);
     } else if (State.phase === 'game') {
       if (typeof Game !== 'undefined') Game.handleMessage(fromId, msg);
+    } else {
+      // FIX: log di warning per messaggi ignorati durante la fase 'menu'
+      // (es. transizioni di fase, messaggi in volo durante goToMenu).
+      // Prima erano silenziosamente ingoiati, rendendo il debug molto difficile.
+      if (msg.type !== 'HOST_DISCONNECTED' && msg.type !== 'PLAYER_LEFT') {
+        console.warn(`[Net] Messaggio ignorato (fase='${State.phase}'):`, msg.type, 'da', fromId);
+      }
     }
   },
 };

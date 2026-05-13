@@ -10,6 +10,15 @@
 //  ─ Al click, host trasmette EXEC_ADVANCE a tutti i client
 //  ─ I client ricevono EXEC_ADVANCE → Execution.advance() → la loro
 //    animazione locale avanza in sincronia con l'host
+//
+//  FIX v6.3.1:
+//  ─ execCard('spam'): rimossa ricorsione infinita quando il discard è
+//    tutto composto da carte SPAM. Ora si saltano le SPAM nel discard
+//    finché non si trova una carta normale, altrimenti non-op.
+//  ─ applyAction('spam'): rimossa doppia scrittura su discard + deck.
+//    La SPAM viene aggiunta solo al discard, coerentemente con fireLasers().
+//    Aggiungere spam al deck creava una discrepanza tra lo stato simulato
+//    (usato per calcolare il piano) e lo stato reale del giocatore.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Execution = (() => {
@@ -59,7 +68,20 @@ const Execution = (() => {
         return [{ type:'energy', id, energy: s.energy }];
       }
       case 'spam': {
-        if (s.discard?.length) return execCard(sim, id, s.discard.pop(), null);
+        // FIX: la versione precedente faceva s.discard.pop() direttamente,
+        // causando ricorsione infinita se il discard era tutto composto da SPAM
+        // (scenario reale: robot colpito da molti laser a inizio partita, prima
+        // che la mano venga scaricata nel discard).
+        //
+        // Correzione: si cerca la prima carta NON-spam partendo dalla cima del
+        // discard (pop = fondo dell'array, dove si trovano le carte normali
+        // aggiunte con push). Si saltano eventuali spam trovate. Se non c'è
+        // nessuna carta normale, non-op.
+        while (s.discard?.length) {
+          const top = s.discard.pop();
+          if (top !== 'spam') return execCard(sim, id, top, null);
+          // Se era spam, la scartiamo semplicemente (la spam ha già fatto il suo).
+        }
         return [];
       }
       default: return [];
@@ -145,9 +167,17 @@ const Execution = (() => {
         break;
       case 'energy': p.energy = a.energy; break;
       case 'spam':
+        // FIX: la versione precedente aggiungeva la spam sia a p.discard che
+        // a p.deck, creando una discrepanza con fireLasers() (che aggiunge solo
+        // al discard del simulatore). La spam aggiuntiva nel deck non veniva
+        // considerata nella simulazione, portando a stati incoerenti tra host
+        // e client nei round successivi.
+        //
+        // Correzione: la spam va solo nel discard, in linea con fireLasers().
+        // Quando il deck esaurisce si rimesche il discard → la spam entrerà
+        // automaticamente nel ciclo di pesca del round successivo.
         if (!p.discard) p.discard = [];
         p.discard.unshift('spam');
-        if (p.deck) p.deck.unshift('spam');
         break;
     }
   }
