@@ -7,6 +7,10 @@
 //    altrimenti fanno fallback al disegno canvas originale
 //  - Pavimento a scacchi con pavement_A / pavement_B
 //  - Nastri / laser ruotati in base alla direzione
+//
+//  FIX v6.3.1:
+//  - _buildCache(): rimossa riga ctx.fillRect orfana che copriva sempre lo sfondo
+//    con un rettangolo nero, rendendo invisibile la background image.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Board = {
@@ -103,7 +107,11 @@ const Board = {
   _buildCache(ctx) {
     const { width, height } = this.data;
 
-    //ctx.fillStyle = '#161b22';
+    // FIX: la riga ctx.fillRect(0,0,W,H) che era qui dopo il blocco if/else
+    // era un residuo del codice precedente (quando c'era fillStyle = '#161b22'
+    // commentato). Senza fillStyle esplicito, sul canvas è nero (#000) di default,
+    // quindi ricopriva sempre la background image appena disegnata.
+    // Soluzione: rimossa la riga orfana.
     const bgImg = this._imgs['board_bg'];
     if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
       ctx.drawImage(bgImg, 0, 0, this.W, this.H);
@@ -111,7 +119,7 @@ const Board = {
       ctx.fillStyle = '#161b22';
       ctx.fillRect(0, 0, this.W, this.H);
     }
-    ctx.fillRect(0, 0, this.W, this.H);
+    // ← la fillRect incondizionata è stata rimossa da qui
 
     for (let cy = 0; cy < height; cy++)
       for (let cx = 0; cx < width; cx++)
