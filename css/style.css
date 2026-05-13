@@ -184,9 +184,14 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 .game-main {
   display: flex;
   flex-wrap: nowrap;       /* ← FIX: impedisce che il canvas vada a capo */
-  gap: 12px;
+  gap: 10px;              /* leggermente ridotto: il padding ci pensa */
   align-items: flex-start;
   width: 100%;
+
+  background: url('../assets/img/Plancia.jpg') center / cover no-repeat;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 28px rgba(0,0,0,0.55);
 }
 
 /* Colonna sinistra */
@@ -214,10 +219,10 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 .canvas-wrapper {
   position: relative;
   flex-shrink: 0;
-  padding: 10px;
+  /*padding: 10px;
   background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5);*/
 }
 
 canvas {
@@ -349,3 +354,33 @@ canvas {
 .win-trophy { font-size: 5rem; line-height: 1; }
 .win-title  { font-size: 2.2rem; font-weight: 800; color: #e3b341; letter-spacing: -0.02em; }
 .win-player { font-size: 1.4rem; font-weight: 700; color: #e6edf3; }
+
+
+/* ════ JOIN: sfondo immagine + card vetro ════ */
+#scr-join {
+  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
+  min-height: calc(100vh - 32px);
+  border-radius: 14px;
+  position: relative;
+  justify-content: center;
+}
+#scr-join::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.52); border-radius: 14px; pointer-events: none;
+}
+#scr-join > * { position: relative; z-index: 1; }
+
+.join-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  background: rgba(13,17,23,0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 14px;
+  padding: 36px 40px;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  min-width: 320px;
+}
