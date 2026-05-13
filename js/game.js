@@ -1,34 +1,31 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — v6.2
+//  GAME.JS — v6.3
 //
-//  NOVITÀ:
-//  ─ _computeCellSize(): dimensione cella calcolata dallo spazio disponibile
-//    → mappa grande quanto possibile, si adatta automaticamente a schermi diversi
-//    → funziona con qualsiasi dimensione di mappa futura
-//  ─ SZ = CELL * 0.85 → robot più grandi e visibili
-//  ─ HUD con immagine robot reale + energia + ★ checkpoint, aggiornati ogni frame
-//  ─ Pulsante "Salta round" rinominato con tooltip esplicativo
+//  LAYOUT 3 COLONNE:
+//  [#game-left: HUD + codice] | [canvas] | [#game-side: prog/exec]
+//  → nessuna top-bar separata → il canvas usa tutta l'altezza disponibile
+//
+//  FIX SINCRONIA:
+//  ─ SYNC_STATE ignorato durante State.execAnimating (niente salti di lerp)
+//  ─ REQUEST_SYNC risponde correttamente dall'host
+//  ─ EXEC_ADVANCE: solo non-host chiama Execution.advance()
+//    (host lo invia tramite execution.js waitForAdvance)
+//  ─ Polling sync 2.5s solo per non-host
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
 
-  // Mutabili: ricalcolati in init() per ogni mappa
   let CELL = CONFIG.cellSize;
   let SZ   = Math.round(CELL * 0.85);
 
-  const LERP_BY_SPEED = [0.07, 0.12, 0.18, 0.30];
-
-  // I PNG dei robot sono orientati verso Sud (giù) per default.
-  // Il sistema di rotazione usa Est (destra) = 0°.
-  // Offset -π/2 compensa: ruota lo sprite di -90° prima di applicare
-  // la direzione del robot → Sud + (-90°) = Est = orientamento base corretto.
-  const SPRITE_ROT_OFFSET = -Math.PI / 2;
+  const LERP_BY_SPEED    = [0.07, 0.12, 0.18, 0.30];
+  const SPRITE_ROT_OFFSET = -Math.PI / 2; // sprite PNG puntano a Sud → offset -90°
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
   const anim   = {};
   const _robotImgs = {};
-  const DIR_ANGLE = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
+  const DIR_ANGLE  = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
@@ -47,33 +44,26 @@ const Game = (() => {
     }
   }
 
-  // ── Calcola la dimensione ottimale della cella ────────────────────────────
+  // ── Calcola dimensione cella ottimale per layout 3 colonne ────────────────
   //
-  // Obiettivo: la mappa deve occupare tutto lo spazio disponibile, senza
-  // essere più grande della viewport. Si adatta sia al numero di celle
-  // (mapW × mapH) sia alla risoluzione dello schermo.
-  //
-  // Layout: [canvas] [sidebar 260px] con gap 16px e padding corpo 32px.
-  // L'altezza tiene conto della top bar (~56px) e dei controlli (~40px).
+  // Layout: [left 180px + 12gap] | [canvas] | [right 260px + 16gap]
+  // Senza top-bar: availH ≈ viewport height − 40px padding verticale
   //
   function _computeCellSize(mapW, mapH) {
-    const SIDEBAR   = 260 + 16;  // pannello laterale + gap
-    const PAD_H     = 32;        // padding orizzontale body (2×16)
-    const OVERHEAD_V = 56 + 40 + 32; // top-bar + controlli + padding verticale
+    const LEFT_W  = 180 + 12;
+    const RIGHT_W = 260 + 16;
+    const H_PAD   = 40;
+    const V_PAD   = 40;
 
-    // Larghezza disponibile per il canvas (limitata al container max 1200px)
-    const maxContainerW = 1200 - PAD_H;
-    const screenW       = window.innerWidth - PAD_H;
-    const availW = Math.max(300, Math.min(screenW, maxContainerW) - SIDEBAR);
+    const screenW  = window.innerWidth  - H_PAD;
+    const screenH  = window.innerHeight - V_PAD;
+    const maxContW = 1400 - H_PAD;
 
-    // Altezza disponibile per il canvas
-    const availH = Math.max(300, window.innerHeight - OVERHEAD_V);
+    const availW = Math.max(300, Math.min(screenW, maxContW) - LEFT_W - RIGHT_W);
+    const availH = Math.max(300, screenH);
 
     const byW = Math.floor(availW / mapW);
     const byH = Math.floor(availH / mapH);
-
-    // Prende il minore per garantire che la mappa stia in entrambe le dimensioni
-    // Min 36px (leggibile), max 80px (non esagerato)
     return Math.max(36, Math.min(byW, byH, 80));
   }
 
@@ -93,13 +83,12 @@ const Game = (() => {
     if (ep) ep.style.display = showExec ? 'flex' : 'none';
   }
 
-  // ── Costruisce un elemento immagine robot con fallback emoji ──────────────
   function _makeRobotImg(char, cssClass) {
     if (char?.sprite) {
       const img = document.createElement('img');
       img.className = cssClass;
       img.src = char.sprite;
-      img.alt = char.name;
+      img.alt = char?.name ?? '';
       img.onerror = function() {
         this.style.display = 'none';
         const fb = document.createElement('span');
@@ -115,34 +104,33 @@ const Game = (() => {
     return em;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   return {
 
     init(mapData, settings = {}) {
       if (settings.execMode  !== undefined) State.execMode  = settings.execMode;
       if (settings.execSpeed !== undefined) State.execSpeed = settings.execSpeed;
 
-      // 1. Dimensioni mappa
       const mapW = mapData?.width  ?? 12;
       const mapH = mapData?.height ?? 12;
 
-      // 2. Calcolo dimensione ottimale della cella
       CELL = _computeCellSize(mapW, mapH);
       SZ   = Math.round(CELL * 0.85);
 
-      // 3. Board: imposta CELL PRIMA di load() (che usa CELL per calcolare W/H)
       Board.CELL = CELL;
       Board.load(mapData);
       Board.preloadImages();
       preloadRobotSprites();
 
-      State.phase = 'game';
-      State.round = 0;
+      State.phase        = 'game';
+      State.round        = 0;
+      State.execAnimating = false;
 
       canvas.width  = Board.W;
       canvas.height = Board.H;
 
-      // 4. Adatta il pannello laterale all'altezza del canvas
+      // Adatta l'altezza di entrambi i pannelli laterali al canvas
+      const gameLeft = document.getElementById('game-left');
+      if (gameLeft) gameLeft.style.maxHeight = `${Board.H}px`;
       const gameSide = document.getElementById('game-side');
       if (gameSide) gameSide.style.maxHeight = `${Board.H}px`;
 
@@ -160,19 +148,19 @@ const Game = (() => {
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
 
-      // Pulsante "Avanti →" (modalità manuale)
+      // Pulsante "Avanti →" — solo host, gestito da execution.js
       const advBtn = document.getElementById('btn-advance');
       if (advBtn) {
         advBtn.style.display = 'none';
         advBtn.onclick = () => Execution.advance();
       }
 
-      // Pulsante "Salta round" — solo host, scopo: testing
+      // Pulsante "Salta round" — solo host, solo per sviluppo/testing
       const skipBtn = document.getElementById('btn-skip-round');
       if (skipBtn) {
         skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
         skipBtn.textContent   = '⏭ Salta round';
-        skipBtn.title         = 'Salta l\'esecuzione corrente e avvia il round successivo — utile durante lo sviluppo per testare rapidamente senza aspettare l\'animazione';
+        skipBtn.title         = 'Salta il round corrente — utile per testare rapidamente';
         skipBtn.onclick       = () => Execution.skipToNextRound();
       }
 
@@ -187,15 +175,14 @@ const Game = (() => {
           State.round = 1;
           Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0 });
         }, 1000);
-      }
-
-      // Non-host: chiedi sincronizzazione posizioni ogni 2.5 secondi.
-      // Recupera eventuali aggiornamenti persi via WebRTC.
-      if (!State.isHost) {
+      } else {
+        // ── Sync periodico (solo non-host) ──────────────────────────────────
+        // Chiede all'host le posizioni correnti ogni 2.5s.
+        // Serve a recuperare aggiornamenti persi via WebRTC.
+        // NOTA: Game.handleMessage ignora la risposta (SYNC_STATE) se
+        //       State.execAnimating = true, per non interrompere le animazioni.
         setInterval(() => {
-          if (State.phase === 'game') {
-            Net.send({ type: 'REQUEST_SYNC' });
-          }
+          if (State.phase === 'game') Net.send({ type: 'REQUEST_SYNC' });
         }, 2500);
       }
     },
@@ -227,7 +214,6 @@ const Game = (() => {
         const a = anim[p.id];
         if (a) this._drawRobot(p, a.renderX, a.renderY, a.renderAngle);
       }
-      // Aggiorna energia e checkpoint nelle card HUD ogni frame (operazione leggera)
       this._updateHudSubs();
     },
 
@@ -239,7 +225,6 @@ const Game = (() => {
       const cy   = ry + CELL / 2;
       const half = SZ / 2;
 
-      // Ombra
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
@@ -247,7 +232,6 @@ const Game = (() => {
       ctx.fill();
       ctx.restore();
 
-      // Sprite PNG (se disponibile e caricata)
       const spriteImg = char ? _robotImgs[char.id] : null;
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
         ctx.save();
@@ -264,7 +248,6 @@ const Game = (() => {
           ctx.restore();
         }
       } else {
-        // Fallback: robot disegnato con canvas
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle);
@@ -283,7 +266,6 @@ const Game = (() => {
         ctx.restore();
       }
 
-      // Etichetta (fuori dalla rotazione)
       ctx.fillStyle    = isMe ? '#e6edf3' : '#9ca3af';
       ctx.font         = `bold ${Math.max(9, Math.round(CELL * 0.2))}px system-ui`;
       ctx.textAlign    = 'center';
@@ -310,49 +292,39 @@ const Game = (() => {
       ctx.closePath();
     },
 
-    // ── HUD: card per ogni giocatore con sprite robot ─────────────────────
+    // ── HUD ───────────────────────────────────────────────────────────────
     _buildHud() {
       const hud = document.getElementById('game-hud');
       if (!hud) return;
       hud.innerHTML = '';
-
       for (const p of State.getPlayerList()) {
         const char  = CONFIG.characters.find(c => c.id === p.character);
         const color = char?.color ?? '#6b7280';
         const isMe  = p.id === State.myId;
-
-        const card = document.createElement('div');
+        const card  = document.createElement('div');
         card.className = 'hud-card' + (isMe ? ' is-me' : '');
         card.dataset.pid = p.id;
-
-        // Contenitore immagine robot
         const wrap = document.createElement('div');
         wrap.className = 'hud-robot-wrap';
         wrap.style.cssText = `background:${color}22;border:1px solid ${color}55;`;
         wrap.appendChild(_makeRobotImg(char, 'hud-robot-img'));
-        card.appendChild(wrap);
-
-        // Testo
         const info = document.createElement('div');
         info.className = 'hud-info';
-
         const nameEl = document.createElement('div');
         nameEl.className = 'hud-name';
         nameEl.textContent = (p.nickname || '?').substring(0, 10) + (isMe ? ' (tu)' : '');
-
         const subEl = document.createElement('div');
         subEl.className = 'hud-sub';
         subEl.id = `hud-sub-${p.id}`;
         subEl.textContent = `⚡${p.energy ?? CONFIG.startingEnergy}`;
-
         info.appendChild(nameEl);
         info.appendChild(subEl);
+        card.appendChild(wrap);
         card.appendChild(info);
         hud.appendChild(card);
       }
     },
 
-    // Aggiorna solo la riga energia/checkpoint (chiamata ogni frame, leggera)
     _updateHudSubs() {
       for (const p of State.getPlayerList()) {
         const el = document.getElementById(`hud-sub-${p.id}`);
@@ -373,27 +345,22 @@ const Game = (() => {
       const ep = document.getElementById('exec-panel');
       if (!ep) return;
       ep.innerHTML = '';
-
       const title = document.createElement('div');
       title.id = 'exec-panel-title';
       title.textContent = '— In esecuzione —';
       ep.appendChild(title);
-
       for (const p of State.getPlayerList()) {
         const regs  = registers?.[p.id] ?? [];
         const char  = CONFIG.characters.find(c => c.id === p.character);
         const color = char?.color ?? '#6b7280';
         const isMe  = p.id === State.myId;
-
-        const row = document.createElement('div');
+        const row   = document.createElement('div');
         row.className = 'exec-player-row' + (isMe ? ' is-me' : '');
-
         const nameEl = document.createElement('div');
         nameEl.className = 'exec-player-name';
         nameEl.style.color = color;
         nameEl.textContent = (p.nickname || '?').substring(0, 9) + (isMe ? ' ◀' : '');
         row.appendChild(nameEl);
-
         const regsEl = document.createElement('div');
         regsEl.className = 'exec-registers';
         for (let i = 0; i < CONFIG.registersCount; i++) {
@@ -440,17 +407,18 @@ const Game = (() => {
       if (btn) btn.style.display = show ? 'inline-flex' : 'none';
     },
 
+    // ── Message routing ────────────────────────────────────────────────────
     handleMessage(fromId, msg) {
-      // Host: riceve richiesta di sync → manda lo stato attuale di tutti i robot
+
+      // HOST: risponde a richieste di sincronizzazione posizioni
       if (msg.type === 'REQUEST_SYNC' && State.isHost) {
         const positions = {};
         for (const [id, p] of Object.entries(State.players)) {
+          if (p.cx === undefined) continue;
           positions[id] = {
-            cx:          p.cx,
-            cy:          p.cy,
-            dir:         p.dir,
-            energy:      p.energy,
-            checkpoints: p.checkpoints ?? [],
+            cx: p.cx, cy: p.cy, dir: p.dir,
+            energy:         p.energy,
+            checkpoints:    p.checkpoints    ?? [],
             lastCheckpoint: p.lastCheckpoint ?? 0,
           };
         }
@@ -458,18 +426,25 @@ const Game = (() => {
         return;
       }
 
-      // Client: riceve lo stato sincronizzato dall'host → aggiorna le posizioni
+      // CLIENT: riceve stato sincronizzato dall'host.
+      // ⚠ IGNORATO se execAnimating = true → evita che il sync
+      //   salti il lerp durante l'animazione cella per cella.
       if (msg.type === 'SYNC_STATE') {
+        if (State.execAnimating) return;
         for (const [id, pos] of Object.entries(msg.positions ?? {})) {
           const p = State.players[id];
           if (!p) continue;
-          p.cx  = pos.cx;
-          p.cy  = pos.cy;
-          p.dir = pos.dir;
-          if (pos.energy          !== undefined) p.energy          = pos.energy;
-          if (pos.checkpoints     !== undefined) p.checkpoints     = pos.checkpoints;
-          if (pos.lastCheckpoint  !== undefined) p.lastCheckpoint  = pos.lastCheckpoint;
+          p.cx = pos.cx; p.cy = pos.cy; p.dir = pos.dir;
+          if (pos.energy         !== undefined) p.energy         = pos.energy;
+          if (pos.checkpoints    !== undefined) p.checkpoints    = pos.checkpoints;
+          if (pos.lastCheckpoint !== undefined) p.lastCheckpoint = pos.lastCheckpoint;
         }
+        return;
+      }
+
+      // CLIENT: host ha cliccato "Avanti →" → avanza l'animazione locale
+      if (msg.type === 'EXEC_ADVANCE') {
+        if (!State.isHost) Execution.advance();
         return;
       }
 
@@ -478,6 +453,7 @@ const Game = (() => {
         if (p) { p.cx = msg.cx; p.cy = msg.cy; p.dir = msg.dir ?? p.dir; }
         return;
       }
+
       Cards.handleGameMessage(fromId, msg);
     },
   };

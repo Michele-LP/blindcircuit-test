@@ -1,26 +1,24 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  EXECUTION.JS — v6.1
+//  EXECUTION.JS — v6.3
 //
-//  NOVITÀ:
-//  ─ animate() usa async/await: applica un'azione alla volta → cella per cella
-//  ─ Modalità AUTO: pausa configurable tra azioni (State.execSpeed 1-4)
-//  ─ Modalità MANUAL: si ferma dopo ogni registro e aspetta il click "Avanti"
-//  ─ skipToNextRound(): salta l'esecuzione corrente → round successivo (host)
-//  ─ advance(): chiamato dal pulsante "Avanti →"
+//  FIX SINCRONIA:
+//  ─ State.execAnimating = true durante animate() → i client ignorano
+//    SYNC_STATE mentre l'animazione è in corso (niente salti di posizione)
+//
+//  FIX PULSANTE AVANTI:
+//  ─ In modalità MANUAL, solo l'host vede e clicca "Avanti →"
+//  ─ Al click, host trasmette EXEC_ADVANCE a tutti i client
+//  ─ I client ricevono EXEC_ADVANCE → Execution.advance() → la loro
+//    animazione locale avanza in sincronia con l'host
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Execution = (() => {
 
-  // ── Delay in ms per velocità 1-4 ─────────────────────────────────────────
-  // actionDelay: tra un'azione e la successiva (ogni singola cella)
-  // regDelay:    pausa extra dopo ogni registro completo (solo auto mode)
   const ACTION_DELAYS = [650, 380, 200, 80];
   const REG_DELAYS    = [1400, 800, 400, 120];
 
-  // ── Flag per cancellare l'esecuzione in corso (es. skip) ─────────────────
   let _cancelled = { value: false };
 
-  // ── Direzioni ─────────────────────────────────────────────────────────────
   const VECS  = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
   const ROT_R = { N:'E', E:'S', S:'W', W:'N' };
   const ROT_L = { N:'W', W:'S', S:'E', E:'N' };
@@ -45,7 +43,6 @@ const Execution = (() => {
     return { cx: s.startCx, cy: s.startCy };
   }
 
-  // ── Calcolo piano di esecuzione ───────────────────────────────────────────
   function execCard(sim, id, card, prevCard) {
     const s = sim[id];
     switch (card) {
@@ -90,7 +87,6 @@ const Execution = (() => {
         actions.push({ type:'fall', id, cx: nx, cy: ny, respawnCx: rp.cx, respawnCy: rp.cy });
         break;
       }
-      // TODO Fase 6: push a catena
       s.cx = nx; s.cy = ny;
       actions.push({ type:'move', id, cx: nx, cy: ny });
     }
@@ -110,8 +106,7 @@ const Execution = (() => {
     const actions = [];
     for (const laser of Board.data?.lasers ?? []) {
       const vec = VECS[laser.dir];
-      let lx = laser.x + vec[0];
-      let ly = laser.y + vec[1];
+      let lx = laser.x + vec[0], ly = laser.y + vec[1];
       while (Board.inBounds(lx, ly)) {
         const hit = Object.values(sim).find(s => s.cx === lx && s.cy === ly);
         if (hit) {
@@ -136,7 +131,6 @@ const Execution = (() => {
     return [...all.slice(from), ...all.slice(0, from)].map(p => p.id);
   }
 
-  // ── Applica una singola azione allo State ─────────────────────────────────
   function applyAction(a) {
     const p = State.players[a.id];
     if (!p) return;
@@ -158,7 +152,6 @@ const Execution = (() => {
     }
   }
 
-  // ── Fine esecuzione ───────────────────────────────────────────────────────
   function onExecutionEnd(winner) {
     if (winner) {
       const name = State.players[winner]?.nickname ?? 'Qualcuno';
@@ -177,12 +170,8 @@ const Execution = (() => {
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  API PUBBLICA
-  // ═════════════════════════════════════════════════════════════════════════
   return {
 
-    // HOST: calcola piano e trasmette
     compute(allRegisters) {
       if (!State.isHost) return;
 
@@ -199,10 +188,9 @@ const Execution = (() => {
         };
       });
 
-      const plan     = [];
-      const prevCard = {};
-      const order    = turnOrder();
-      let   winner   = null;
+      const plan = [], prevCard = {};
+      const order = turnOrder();
+      let winner = null;
 
       for (let reg = 0; reg < CONFIG.registersCount; reg++) {
         const regActions = [];
@@ -212,7 +200,6 @@ const Execution = (() => {
           regActions.push(...execCard(sim, id, card, prevCard[id]));
           if (card !== 'again') prevCard[id] = card;
         }
-        // TODO Fase 6: nastri, ingranaggi, push panel
         regActions.push(...fireLasers(sim));
         for (const id of order) {
           const cp = checkCheckpoint(sim[id]);
@@ -224,7 +211,6 @@ const Execution = (() => {
         if (winner) break;
       }
 
-      // Celle ricarica a fine turno
       const rechActions = [];
       for (const [id, s] of Object.entries(sim)) {
         if (Board.cellType(s.cx, s.cy) === 'recharge') {
@@ -234,41 +220,52 @@ const Execution = (() => {
       }
       if (rechActions.length) plan.push(rechActions);
 
-      const payload = { type: 'EXECUTE_PLAN', plan, winner, registers: allRegisters };
-      Net.broadcast(payload);
+      Net.broadcast({ type: 'EXECUTE_PLAN', plan, winner, registers: allRegisters });
       this.animate(plan, winner, allRegisters);
     },
 
-    // Client: riceve il piano dall'host
     receive(msg) {
       this.animate(msg.plan, msg.winner, msg.registers ?? null);
     },
 
-    // ── Animazione async cella per cella ──────────────────────────────────
-    // Ogni movimento (anche un singolo passo di move3) è separato da actionDelay.
-    // In modalità MANUALE, dopo ogni registro si aspetta il click su "Avanti →".
+    // ── Animazione asincrona cella per cella ───────────────────────────────
     async animate(plan, winner, registers) {
-      // Cancella eventuale esecuzione precedente
       _cancelled.value = true;
       const token = { value: false };
       _cancelled = token;
 
-      const speed = Math.max(1, Math.min(4, State.execSpeed ?? 2));
+      const speed       = Math.max(1, Math.min(4, State.execSpeed ?? 2));
       const actionDelay = ACTION_DELAYS[speed - 1];
       const regDelay    = REG_DELAYS[speed - 1];
+      const wait        = (ms) => new Promise(res => setTimeout(res, ms));
 
-      // Helper: aspetta N ms se non cancellato
-      const wait = (ms) => new Promise(res => setTimeout(res, ms));
-
-      // Helper: aspetta click su "Avanti →" (modal mode)
+      // ── Attesa avanzamento manuale ──────────────────────────────────────
+      //
+      // HOST: mostra il pulsante "Avanti →", al click trasmette EXEC_ADVANCE
+      //       a tutti i client e risolve la promise.
+      //
+      // NON-HOST: NON mostra il pulsante. Imposta State.execAdvance come callback.
+      //           Quando riceve EXEC_ADVANCE dall'host (→ Game.handleMessage →
+      //           Execution.advance()), la callback viene chiamata e l'animazione
+      //           locale avanza in sincronia con l'host.
+      //
       const waitForAdvance = () => new Promise(res => {
         State.execAdvance = () => {
           State.execAdvance = null;
-          Game.showAdvanceButton(false);
+          if (State.isHost) {
+            Game.showAdvanceButton(false);
+            Net.broadcast({ type: 'EXEC_ADVANCE' });  // sincronizza i client
+          }
           res();
         };
-        Game.showAdvanceButton(true);
+        // Solo l'host vede il bottone
+        if (State.isHost) Game.showAdvanceButton(true);
       });
+
+      // Segnala a tutti i sistemi che l'animazione è in corso.
+      // Usato da Game.handleMessage per ignorare SYNC_STATE durante l'animazione
+      // (altrimenti il sync farebbe saltare le posizioni dei robot).
+      State.execAnimating = true;
 
       Game.showExecPanel(registers);
       await wait(500);
@@ -278,22 +275,16 @@ const Execution = (() => {
 
         Game.highlightRegister(reg);
 
-        const regActions = plan[reg];
-        for (const action of regActions) {
+        for (const action of plan[reg]) {
           if (token.value) return;
-
           applyAction(action);
-
-          // Delay più lungo per azioni visive (movimento/rotazione), breve per le altre
-          const isVisual = (action.type === 'move' || action.type === 'rotate' || action.type === 'fall');
-          await wait(isVisual ? actionDelay : Math.max(60, actionDelay * 0.15));
+          const visual = action.type === 'move' || action.type === 'rotate' || action.type === 'fall';
+          await wait(visual ? actionDelay : Math.max(60, actionDelay * 0.15));
         }
 
         if (token.value) return;
 
-        // Pausa tra registri
-        const isLastReg = (reg === plan.length - 1);
-        if (!isLastReg) {
+        if (reg < plan.length - 1) {
           if (State.execMode === 'manual') {
             await waitForAdvance();
           } else {
@@ -304,27 +295,25 @@ const Execution = (() => {
 
       if (token.value) return;
 
-      // Fine esecuzione
-      State.execAdvance = null;
+      State.execAnimating = false;
+      State.execAdvance   = null;
       Game.showAdvanceButton(false);
       Game.hideExecPanel();
       onExecutionEnd(winner);
     },
 
-    // Chiamato dal pulsante "Avanti →"
+    // Chiamato dal click su "Avanti →" (host) o da EXEC_ADVANCE ricevuto (client)
     advance() {
       if (typeof State.execAdvance === 'function') State.execAdvance();
     },
 
-    // HOST ONLY: salta il round corrente e passa al successivo
-    // Utile per testing
     skipToNextRound() {
       if (!State.isHost) return;
-      _cancelled.value = true;
-      State.execAdvance = null;
+      _cancelled.value    = true;
+      State.execAnimating = false;
+      State.execAdvance   = null;
       Game.showAdvanceButton(false);
       Game.hideExecPanel();
-      // Nascondi prog panel se aperto
       const pp = document.getElementById('prog-panel');
       if (pp) pp.style.display = 'none';
       onExecutionEnd(null);
