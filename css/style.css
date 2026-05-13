@@ -195,7 +195,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 }
 
 /* Colonna sinistra */
-#game-left { width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+#game-left { width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px;}
 #game-left::-webkit-scrollbar { width: 3px; }
 #game-left::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
 
@@ -232,7 +232,7 @@ canvas {
 }
 
 /* Colonna destra */
-#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px;}
 #game-side::-webkit-scrollbar { width: 4px; }
 #game-side::-webkit-scrollbar-track { background: transparent; }
 #game-side::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
