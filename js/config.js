@@ -1,10 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CONFIG.JS — v6.1
+//  CONFIG.JS — v6.4
+//
+//  FIX v6.4:
+//  ─ Composizione mazzo corretta secondo regolamento ufficiale (20 carte).
+//    Fonte: RoboRally Rulebook 2023, pag. 11 "Card Index".
+//    Modifiche rispetto alla v6.1:
+//      move1:       3 → 4
+//      move3:       2 → 1
+//      rotateRight: 3 → 4
+//      rotateLeft:  3 → 4
+//      again:       2 → 1
+//      recharge:    2 → 1  (= Power Up nel regolamento)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = Object.freeze({
 
-  version:  '6.1',
+  version:  '6.4',
   gameName: 'BlindCircuit',
 
   // ── Rete ──────────────────────────────────────────────────────────────────
@@ -30,17 +41,32 @@ const CONFIG = Object.freeze({
   spamOnDamage:    1,
   maxDamage:       5,
 
-  // ── Composizione mazzo ────────────────────────────────────────────────────
+  // ── Composizione mazzo (20 carte per giocatore) ───────────────────────────
+  //
+  //  Carta          Copie   Note
+  //  ───────────    ──────  ─────────────────────────────────────────────────
+  //  Move 1           4     le più comuni
+  //  Move 2           3     mediamente rare
+  //  Move 3           1     rara e potente
+  //  Move Back        1     retrocede senza cambiare facing
+  //  Rotate Right     4     simmetrica con Rotate Left
+  //  Rotate Left      4
+  //  U-Turn           1     inversione 180°
+  //  Again            1     ripete il registro precedente
+  //  Power Up         1     +1 energia (nel codice: 'recharge')
+  //  ───────────    ──────
+  //  Totale          20
+  //
   deckComposition: {
-    move1:        3,
+    move1:        4,   // FIX v6.4: era 3
     move2:        3,
-    move3:        2,
+    move3:        1,   // FIX v6.4: era 2
     backUp:       1,
-    rotateRight:  3,
-    rotateLeft:   3,
+    rotateRight:  4,   // FIX v6.4: era 3
+    rotateLeft:   4,   // FIX v6.4: era 3
     uTurn:        1,
-    again:        2,
-    recharge:     2,
+    again:        1,   // FIX v6.4: era 2
+    recharge:     1,   // FIX v6.4: era 2 (= Power Up nel regolamento ufficiale)
   },
 
   // ── Personaggi ────────────────────────────────────────────────────────────
@@ -54,8 +80,6 @@ const CONFIG = Object.freeze({
   ],
 
   // ── Tabellone ─────────────────────────────────────────────────────────────
-  // NOTA: cellSize ridotto a 40 per permettere la visualizzazione affiancata
-  //       con il pannello di programmazione (~780px totali invece di ~860px).
   defaultMap: 'exchange',
   cellSize:   40,
 
@@ -78,10 +102,7 @@ const CONFIG = Object.freeze({
     ],
   },
 
-  //Background img
   boardBackground: 'assets/img/Plancia.jpg',
-  // ── Sprite robot ─────────────────────────────────────────────────────────
-  // (ridondante con characters.sprite ma utile per lookup rapido)
 
   // ── Carte ─────────────────────────────────────────────────────────────────
   cardFrame: null,
@@ -96,8 +117,8 @@ const CONFIG = Object.freeze({
     { id: 'rotateLeft',  name: 'Gira Sinistra', image: 'assets/cards/TurnLeft.png',  desc: 'Ruota 90° a sinistra' },
     { id: 'uTurn',       name: 'U-Turn',        image: 'assets/cards/TurnU.png',     desc: 'Inversione 180°' },
     { id: 'again',       name: 'Ripeti',        image: 'assets/cards/Repeat.png',    desc: 'Ripete il registro precedente' },
-    { id: 'recharge',    name: 'Ricarica',      image: 'assets/cards/Recharge.png',  desc: 'Nessun movimento; +1 energia' },
-    { id: 'spam',        name: 'SPAM',          image: null,                          desc: 'Azione casuale dagli scarti' },
+    { id: 'recharge',    name: 'Power Up',      image: 'assets/cards/Recharge.png',  desc: '+1 energia' },
+    { id: 'spam',        name: 'SPAM',          image: null,                          desc: 'Esegue la prima carta non-SPAM dal tuo mazzo' },
     { id: 'worm',        name: 'WORM',          image: null,                          desc: 'Blocca un registro al prossimo turno' },
   ],
 });

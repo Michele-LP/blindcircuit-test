@@ -1,5 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  LOBBY.JS — v6.2
+//  LOBBY.JS — v6.4
+//
+//  FIX v6.4:
+//  ─ PLAYER_UPDATE non rigenera più la character grid se l'aggiornamento
+//    riguarda noi stessi (evita race condition con il blur del nickname che
+//    distruggeva i bottoni durante il click → impossibile selezionare un robot).
 //
 //  NOVITÀ:
 //  ─ _renderCharacterGrid(): mostra le immagini PNG dei robot al posto delle emoji
@@ -83,12 +88,22 @@ const Lobby = {
 
       case 'PLAYER_UPDATE': {
         const id = msg.from ?? fromId;
+        // Salva il character precedente per capire se è cambiato
+        const oldCharacter = State.players[id]?.character;
         if (!State.players[id]) State.players[id] = { id, joinOrder: 99, isHost: false };
         Object.assign(State.players[id], {
           nickname: msg.nickname, character: msg.character, ready: msg.ready,
         });
         this.renderPlayerList();
-        this._renderCharacterGrid();
+        // FIX v6.4: rigenera la character grid SOLO se è cambiato il
+        // personaggio di un ALTRO giocatore. Rigenerarla ad ogni PLAYER_UPDATE
+        // (inclusi quelli generati da noi stessi sul blur del nickname)
+        // distrugge i bottoni durante un click in corso, facendo perdere
+        // l'evento click: il giocatore non riesce a selezionare un robot
+        // se ha appena editato il nickname.
+        if (id !== State.myId && oldCharacter !== msg.character) {
+          this._renderCharacterGrid();
+        }
         this._updateStartButton();
         this._updateLobbyStatus();
         break;
