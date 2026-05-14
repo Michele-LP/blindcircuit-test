@@ -1,20 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CARDS.JS — v6.1
+//  CARDS.JS — v6.5
 //
 //  NOVITÀ:
-//  ─ Nessun timer (programmingTimerSec = 0 → timer disabilitato)
-//  ─ startRound() chiama Game.enterProgramming() invece di UI.show('programming')
-//  ─ updateOthersStatus(): aggiorna la sezione "Giocatori" nel pannello laterale
-//  ─ PROGRAM_REGISTERS viene gestito anche dai client non-host per segnare
-//    chi ha già confermato (aggiorna lo stato visivo)
+//  ─ startRound(): riceve wormSlots da ROUND_START e pre-popola i registri
+//    con i WORM attivi. I registri con WORM non sono programmabili.
+//  ─ _renderRegisters(): mostra la carta WORM (con simbolo, colore, nome)
+//    nei registri bloccati. La carta non è cliccabile.
+//  ─ onCardClick(): salta i registri occupati da WORM (già non-null).
+//  ─ onRegisterClick(): impedisce la rimozione di carte WORM.
+//  ─ _updateConfirmBtn(): worm + carte contano tutti verso i 5 registri.
+//  ─ Indicatori UI: mazzo/scarto/SPAM personale e mazzo danno condiviso.
+//  ─ Fix pesca: già gestito da execution.js (deck_sync sincronizza discard).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Cards = {
 
-  _imgs: {},
-  _timerInterval: null,
-  _timerLeft: 0,
-  _confirmed: {},  // solo su host: { playerId: registers[] }
+  _imgs:    {},
+  _confirmed: {},   // solo su host: { playerId: registers[] }
 
   // ── Precaricamento immagini ───────────────────────────────────────────────
   preload() {
@@ -30,7 +32,6 @@ const Cards = {
   },
 
   _safeRender() {
-    // Ri-renderizza solo se il pannello programmazione è visibile
     const pp = document.getElementById('prog-panel');
     if (pp && pp.style.display !== 'none') this.render();
   },
@@ -54,8 +55,9 @@ const Cards = {
 
   _initPlayerCards(player) {
     if (!player.deck) {
-      player.deck    = this._buildDeck();
-      player.discard = [];
+      player.deck      = this._buildDeck();
+      player.discard   = [];
+      player.wormSlots = {};   // inizializzato una volta sola
     }
     player.hand      = [];
     player.registers = new Array(CONFIG.registersCount).fill(null);
@@ -63,6 +65,7 @@ const Cards = {
     player.energy    = player.energy ?? CONFIG.startingEnergy;
   },
 
+  // Pesca n carte. Se il deck finisce a metà, rimescola il discard e continua.
   _draw(player, n) {
     for (let i = 0; i < n; i++) {
       if (player.deck.length === 0) {
@@ -81,31 +84,63 @@ const Cards = {
 
     if (!me.deck) this._initPlayerCards(me);
 
-    // Reset confirmed per tutti (per il pannello "Giocatori")
+    // Aggiorna i wormSlots di TUTTI i giocatori (necessario per display corretto)
+    if (msg.wormSlots) {
+      for (const [id, slots] of Object.entries(msg.wormSlots)) {
+        if (State.players[id]) State.players[id].wormSlots = slots;
+      }
+    }
+    if (!me.wormSlots) me.wormSlots = {};
+
+    // Reset confermati per questo round
     for (const p of Object.values(State.players)) p.confirmed = false;
 
+    // Scarta la mano del round precedente
     me.discard.push(...me.hand);
     me.hand      = [];
-    me.registers = new Array(CONFIG.registersCount).fill(null);
     me.confirmed = false;
 
     if (State.isHost) this._confirmed = {};
 
-    const spamInDeck = me.deck.filter(c => c === 'spam').length;
+    // Pre-popola i registri: worm = bloccato, null = libero da programmare
+    me.registers = Array.from({ length: CONFIG.registersCount },
+      (_, i) => me.wormSlots[i] ?? null
+    );
 
     const title = document.getElementById('prog-title');
     if (title) title.textContent = `Round ${msg.round ?? 1}`;
 
-    const spamInfo = document.getElementById('spam-count');
-    if (spamInfo) spamInfo.textContent = spamInDeck > 0 ? `⚠ ${spamInDeck} SPAM` : '';
-
     this._draw(me, CONFIG.cardsDealt);
+    this._updateDeckInfo(me);
 
-    // Mostra il pannello programmazione affiancato alla plancia
-    // (la plancia rimane visibile perché siamo sempre in scr-game)
     Game.enterProgramming();
     this.render();
     this.updateOthersStatus();
+  },
+
+  // ── Indicatori mazzo ──────────────────────────────────────────────────────
+  _updateDeckInfo(me) {
+    // Conta le SPAM nel ciclo totale del giocatore (deck + discard + hand)
+    const allCards  = [...(me.deck ?? []), ...(me.discard ?? []), ...(me.hand ?? [])];
+    const spamCount = allCards.filter(c => c === 'spam').length;
+    const deckCount = (me.deck ?? []).length;
+    const discCount = (me.discard ?? []).length;
+
+    const spamEl = document.getElementById('spam-count');
+    if (spamEl) {
+      spamEl.textContent = spamCount > 0 ? `⚠ ${spamCount} SPAM` : '';
+    }
+
+    const deckEl = document.getElementById('deck-info');
+    if (deckEl) {
+      deckEl.textContent = `🃏 ${deckCount}  ♻ ${discCount}`;
+    }
+
+    const dmgEl = document.getElementById('dmg-deck-info');
+    if (dmgEl) {
+      const dmgTotal = (State.damageDeck?.length ?? 0) + (State.damageDiscard?.length ?? 0);
+      dmgEl.textContent = `🦠 Guasti: ${State.damageDeck?.length ?? 0}/${dmgTotal}`;
+    }
   },
 
   // ── Interazione carte / registri ──────────────────────────────────────────
@@ -117,6 +152,7 @@ const Cards = {
     const inRegsCount = me.registers.filter(r => r === cardId).length;
     const inHandCount = me.hand.filter(c => c === cardId).length;
     if (inRegsCount >= inHandCount) return;
+    // indexOf(null) salta automaticamente i registri con WORM (non sono null)
     const slot = me.registers.indexOf(null);
     if (slot === -1) return;
     me.registers[slot] = cardId;
@@ -127,7 +163,9 @@ const Cards = {
   onRegisterClick(regIndex) {
     const me = State.myPlayer();
     if (!me || me.confirmed) return;
-    if (!me.registers[regIndex]) return;
+    const card = me.registers[regIndex];
+    if (!card) return;
+    if (typeof card === 'string' && card.startsWith('worm_')) return; // WORM: immovibile
     me.registers[regIndex] = null;
     this.render();
     this._updateConfirmBtn();
@@ -139,7 +177,7 @@ const Cards = {
     if (!me || me.confirmed) return;
     if (me.registers.some(r => r === null)) {
       document.getElementById('prog-status').textContent =
-        'Riempi tutti e 5 i registri prima di confermare.';
+        'Riempi tutti i registri liberi prima di confermare.';
       return;
     }
     me.confirmed = true;
@@ -150,7 +188,6 @@ const Cards = {
     this.updateOthersStatus();
   },
 
-  // Solo host: raccoglie le conferme e lancia l'esecuzione quando tutti pronti
   onGuestConfirmed(fromId, msg) {
     this._confirmed[fromId] = msg.registers;
     const me = State.myPlayer();
@@ -166,36 +203,35 @@ const Cards = {
     const el = document.getElementById('others-status');
     if (!el) return;
     el.innerHTML = '';
-
     for (const p of State.getPlayerList()) {
-      const char     = CONFIG.characters.find(c => c.id === p.character);
-      const color    = char?.color ?? '#6b7280';
-      const isMe     = p.id === State.myId;
-      const confirmed = p.confirmed;
-
-      const row = document.createElement('div');
+      const char  = CONFIG.characters.find(c => c.id === p.character);
+      const color = char?.color ?? '#6b7280';
+      const isMe  = p.id === State.myId;
+      const row   = document.createElement('div');
       row.className = 'other-status-row' + (isMe ? ' is-me' : '');
       row.innerHTML = `
         <span class="other-dot" style="background:${color}"></span>
         <span class="other-name">${(p.nickname || '?').substring(0, 10)}${isMe ? ' (tu)' : ''}</span>
-        <span class="other-conf">${confirmed ? '✅' : '⏳'}</span>
+        <span class="other-conf">${p.confirmed ? '✅' : '⏳'}</span>
       `;
       el.appendChild(row);
     }
   },
 
-  // ── Auto-conferma (timer scaduto) — bug fix v6: conta copie ───────────────
   _autoConfirm() {
     const me = State.myPlayer();
     if (!me || me.confirmed) return;
     const available = [...me.hand];
     for (const r of me.registers) {
-      if (!r) continue;
+      if (!r || r.startsWith?.('worm_')) continue;
       const idx = available.indexOf(r);
       if (idx !== -1) available.splice(idx, 1);
     }
     const pool = this._shuffle(available);
-    me.registers = me.registers.map(r => r ?? (pool.shift() ?? null));
+    me.registers = me.registers.map(r => {
+      if (r !== null) return r;   // già occupato (carta o worm)
+      return pool.shift() ?? null;
+    });
     this.render();
     this.confirm();
   },
@@ -214,8 +250,55 @@ const Cards = {
       const slot = document.getElementById('reg-' + i);
       if (!slot) continue;
       slot.innerHTML = '';
-      if (me.registers[i]) slot.appendChild(this._cardEl(me.registers[i], true, i));
+      const cardId = me.registers[i];
+      if (!cardId) continue;
+
+      if (typeof cardId === 'string' && cardId.startsWith('worm_')) {
+        slot.appendChild(this._wormCardEl(cardId));
+      } else {
+        slot.appendChild(this._cardEl(cardId, true, i));
+      }
     }
+  },
+
+  // Carta WORM nel registro: visivamente distinta, non rimovibile
+  _wormCardEl(wormId) {
+    const wormDef = (RULES?.worms ?? []).find(w => w.id === wormId);
+    const color   = wormDef?.color ?? '#ef4444';
+    const symbol  = wormDef?.symbol ?? '🦠';
+    const name    = wormDef?.name ?? 'WORM';
+
+    const el = document.createElement('div');
+    el.className = 'game-card worm-card';
+    el.title     = `WORM: ${name}`;
+    el.style.cssText = [
+      `background: ${color}22`,
+      `border: 2px solid ${color}`,
+      'border-radius: 5px',
+      'cursor: not-allowed',
+      'width: 100%',
+      'aspect-ratio: 2/3',
+      'position: relative',
+      'display: flex',
+      'flex-direction: column',
+      'align-items: center',
+      'justify-content: center',
+      'gap: 2px',
+      'overflow: hidden',
+    ].join(';');
+
+    const iconEl = document.createElement('div');
+    iconEl.style.cssText = 'font-size: 1.4rem; line-height: 1;';
+    iconEl.textContent = symbol;
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name-area';
+    nameEl.style.cssText = `color: ${color}; font-size: 0.42rem; font-weight: 800;`;
+    nameEl.textContent = name.toUpperCase();
+
+    el.appendChild(iconEl);
+    el.appendChild(nameEl);
+    return el;
   },
 
   _renderHand(me) {
@@ -223,7 +306,9 @@ const Cards = {
     if (!row) return;
     row.innerHTML = '';
     const regCount  = {};
-    for (const r of me.registers) if (r) regCount[r] = (regCount[r] || 0) + 1;
+    for (const r of me.registers) {
+      if (r && !r.startsWith?.('worm_')) regCount[r] = (regCount[r] || 0) + 1;
+    }
     const seenCount = {};
     for (let i = 0; i < me.hand.length; i++) {
       const id = me.hand[i];
@@ -244,6 +329,7 @@ const Cards = {
     } else {
       el.style.cssText = 'background:#2a2010;border:2px solid #6b5e3a;border-radius:6px;';
     }
+    if (cardId === 'spam') el.style.outline = '2px solid #f85149';
 
     if (def?.image) {
       const icon = document.createElement('div');
@@ -255,12 +341,8 @@ const Cards = {
     const nameDiv = document.createElement('div');
     nameDiv.className = 'card-name-area';
     nameDiv.textContent = (def?.name ?? cardId).toUpperCase();
+    if (cardId === 'spam') nameDiv.style.color = '#f85149';
     el.appendChild(nameDiv);
-
-    if (cardId === 'spam') {
-      el.style.outline = '2px solid #f85149';
-      nameDiv.style.color = '#f85149';
-    }
 
     if (!dimmed || isReg) {
       el.addEventListener('click', () => {
@@ -275,17 +357,21 @@ const Cards = {
     me = me ?? State.myPlayer();
     const btn = document.getElementById('btn-confirm');
     if (!btn || !me) return;
+    // Tutti e 5 i registri devono essere non-null (carte E worm contano entrambi)
     const filled = me.registers.filter(Boolean).length;
     btn.disabled = filled < CONFIG.registersCount || me.confirmed;
     const status = document.getElementById('prog-status');
     if (status && !me.confirmed) {
-      status.textContent = filled < CONFIG.registersCount
-        ? `Registri: ${filled}/${CONFIG.registersCount}`
+      const wormCount = Object.values(me.wormSlots ?? {}).filter(Boolean).length;
+      const free = CONFIG.registersCount - wormCount;
+      const done = me.registers.filter(r => r && !r.startsWith?.('worm_')).length;
+      status.textContent = done < free
+        ? `Registri: ${done}/${free} (${wormCount} WORM)`
         : 'Pronti! Conferma per continuare.';
     }
   },
 
-  // ── Dispatcher ────────────────────────────────────────────────────────────
+  // ── Dispatcher messaggi ───────────────────────────────────────────────────
   handleGameMessage(fromId, msg) {
     switch (msg.type) {
       case 'ROUND_START':
@@ -293,9 +379,7 @@ const Cards = {
         break;
 
       case 'PROGRAM_REGISTERS':
-        // Host: raccoglie per esecuzione
         if (State.isHost) this.onGuestConfirmed(fromId, msg);
-        // Tutti: segna il mittente come "confermato" per l'UI
         if (State.players[fromId]) State.players[fromId].confirmed = true;
         this.updateOthersStatus();
         break;

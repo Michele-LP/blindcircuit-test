@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  LOBBY.JS — v6.4
-//
-//  FIX v6.4:
-//  ─ PLAYER_UPDATE non rigenera più la character grid se l'aggiornamento
-//    riguarda noi stessi (evita race condition con il blur del nickname che
-//    distruggeva i bottoni durante il click → impossibile selezionare un robot).
+//  LOBBY.JS — v6.5
 //
 //  NOVITÀ:
-//  ─ _renderCharacterGrid(): mostra le immagini PNG dei robot al posto delle emoji
-//    (fallback all'emoji se l'immagine non carica)
-//  ─ renderPlayerList(): avatar con immagine robot reale
+//  ─ startGame(): costruisce il mazzo danno condiviso da RULES.damage.damageDeck,
+//    lo mescola e lo invia ai client via GAME_START. Imposta State.damageDeck
+//    localmente per l'host.
+//  ─ handleMessage GAME_START: riceve il damageDeck dal messaggio e imposta
+//    State.damageDeck prima di chiamare Game.init().
+//  ─ Fix selezione robot: PLAYER_UPDATE non rigenera la character grid se
+//    l'aggiornamento riguarda noi stessi (evita race condition con blur nickname).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Lobby = {
@@ -60,6 +59,27 @@ const Lobby = {
     });
   },
 
+  // ── Costruisce il mazzo danno condiviso ───────────────────────────────────
+  // Legge la composizione da RULES.damage.damageDeck (caricato da rules.json).
+  // Ogni tipo può essere 'spam' o un ID worm (es. 'worm_blitz').
+  _buildDamageDeck() {
+    const comp = RULES?.damage?.damageDeck ?? {};
+    const deck = [];
+    for (const [type, qty] of Object.entries(comp)) {
+      for (let i = 0; i < qty; i++) deck.push(type);
+    }
+    return this._shuffle(deck);
+  },
+
+  _shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+
   // ── Handler messaggi ───────────────────────────────────────────────────────
   handleMessage(fromId, msg) {
     switch (msg.type) {
@@ -88,19 +108,15 @@ const Lobby = {
 
       case 'PLAYER_UPDATE': {
         const id = msg.from ?? fromId;
-        // Salva il character precedente per capire se è cambiato
         const oldCharacter = State.players[id]?.character;
         if (!State.players[id]) State.players[id] = { id, joinOrder: 99, isHost: false };
         Object.assign(State.players[id], {
           nickname: msg.nickname, character: msg.character, ready: msg.ready,
         });
         this.renderPlayerList();
-        // FIX v6.4: rigenera la character grid SOLO se è cambiato il
-        // personaggio di un ALTRO giocatore. Rigenerarla ad ogni PLAYER_UPDATE
-        // (inclusi quelli generati da noi stessi sul blur del nickname)
-        // distrugge i bottoni durante un click in corso, facendo perdere
-        // l'evento click: il giocatore non riesce a selezionare un robot
-        // se ha appena editato il nickname.
+        // Rigenera la grid solo se è cambiato il personaggio di un ALTRO giocatore.
+        // Rigenerarla per aggiornamenti propri (es. blur del nickname) distrugge
+        // i bottoni durante un click in corso → impossibile selezionare un robot.
         if (id !== State.myId && oldCharacter !== msg.character) {
           this._renderCharacterGrid();
         }
@@ -121,7 +137,16 @@ const Lobby = {
       case 'GAME_START': {
         if (msg.execMode  !== undefined) State.execMode  = msg.execMode;
         if (msg.execSpeed !== undefined) State.execSpeed = msg.execSpeed;
-        Game.init(msg.mapData);
+        // Ricevi il mazzo danno condiviso dall'host
+        if (msg.damageDeck) {
+          State.damageDeck    = msg.damageDeck;
+          State.damageDiscard = [];
+        }
+        Game.init(msg.mapData, {
+          execMode:   msg.execMode,
+          execSpeed:  msg.execSpeed,
+          damageDeck: msg.damageDeck,
+        });
         break;
       }
 
@@ -147,27 +172,21 @@ const Lobby = {
       const row = document.createElement('div');
       row.className = ['player-row', p.ready ? 'ready' : '', isMe ? 'is-me' : ''].join(' ').trim();
 
-      // Avatar: immagine robot o emoji come fallback
       const avatar = document.createElement('div');
       avatar.className = 'player-avatar';
       avatar.style.background = color;
-
       if (char?.sprite) {
         const img = document.createElement('img');
         img.className = 'avatar-bot-img';
         img.src = char.sprite;
         img.alt = char.name;
-        img.onerror = function() {
-          this.style.display = 'none';
-          avatar.textContent = char.emoji;
-        };
+        img.onerror = function() { this.style.display = 'none'; avatar.textContent = char.emoji; };
         avatar.appendChild(img);
       } else {
         avatar.textContent = char?.emoji ?? '🤖';
       }
       row.appendChild(avatar);
 
-      // Info testo
       const info = document.createElement('div');
       info.className = 'player-info';
       info.innerHTML = `
@@ -183,11 +202,9 @@ const Lobby = {
       readyInd.className = 'ready-indicator';
       readyInd.textContent = p.ready ? '✅ Pronto' : '⏳ Attesa';
       row.appendChild(readyInd);
-
       list.appendChild(row);
     }
 
-    // Slot vuoti
     const free = CONFIG.maxPlayers - players.length;
     for (let i = 0; i < Math.min(free, 2); i++) {
       const row = document.createElement('div');
@@ -197,23 +214,13 @@ const Lobby = {
     }
   },
 
-  // ── Griglia personaggi con immagini robot reali ───────────────────────────
-  //
-  // Logica di visualizzazione:
-  // 1. Se char.sprite esiste: mostra l'immagine PNG del robot
-  //    → onerror: nasconde l'immagine, mostra l'emoji come fallback
-  // 2. Se char.sprite è null: mostra subito l'emoji
-  //
-  // La selezione esclusiva (un solo giocatore per personaggio) è gestita
-  // tramite il flag `taken`: il pulsante è disabilitato e appare semi-trasparente.
-  //
+  // ── Griglia personaggi ────────────────────────────────────────────────────
   _renderCharacterGrid() {
-    const grid   = document.getElementById('character-grid');
+    const grid  = document.getElementById('character-grid');
     grid.innerHTML = '';
     const myChar = State.myPlayer()?.character;
 
     for (const char of CONFIG.characters) {
-      // Cerca se un ALTRO giocatore ha già questo personaggio
       const takenBy = Object.values(State.players)
         .find(p => p.character === char.id && p.id !== State.myId);
 
@@ -224,34 +231,25 @@ const Lobby = {
       ].join(' ').trim();
       btn.disabled       = !!takenBy;
       btn.dataset.charId = char.id;
-      btn.title          = takenBy
-        ? `Scelto da ${takenBy.nickname || 'un altro giocatore'}`
-        : char.name;
+      btn.title          = takenBy ? `Scelto da ${takenBy.nickname || 'un altro'}` : char.name;
       btn.style.setProperty('--char-color', char.color);
 
-      // Immagine robot
       const spriteWrap = document.createElement('div');
       spriteWrap.className = 'char-sprite-wrap';
-
       if (char.sprite) {
         const img = document.createElement('img');
         img.className = 'char-sprite-img';
-        img.src = char.sprite;
-        img.alt = char.name;
-        img.draggable = false;
+        img.src = char.sprite; img.alt = char.name; img.draggable = false;
         img.onerror = function() {
-          // Fallback: nascondi img e mostra emoji
           this.style.display = 'none';
           const em = document.createElement('span');
-          em.className = 'char-emoji';
-          em.textContent = char.emoji;
+          em.className = 'char-emoji'; em.textContent = char.emoji;
           spriteWrap.appendChild(em);
         };
         spriteWrap.appendChild(img);
       } else {
         const em = document.createElement('span');
-        em.className = 'char-emoji';
-        em.textContent = char.emoji;
+        em.className = 'char-emoji'; em.textContent = char.emoji;
         spriteWrap.appendChild(em);
       }
 
@@ -261,11 +259,7 @@ const Lobby = {
 
       btn.appendChild(spriteWrap);
       btn.appendChild(nameSpan);
-
-      btn.addEventListener('click', () => {
-        if (!takenBy) this._selectCharacter(char.id);
-      });
-
+      btn.addEventListener('click', () => { if (!takenBy) this._selectCharacter(char.id); });
       grid.appendChild(btn);
     }
   },
@@ -278,7 +272,6 @@ const Lobby = {
     this._broadcastMyUpdate();
   },
 
-  // ── Nickname ───────────────────────────────────────────────────────────────
   onNicknameChange(value) {
     const me = State.myPlayer();
     if (me) me.nickname = value.trim();
@@ -289,7 +282,6 @@ const Lobby = {
     this.renderPlayerList();
   },
 
-  // ── Toggle pronto ─────────────────────────────────────────────────────────
   toggleReady() {
     const me = State.myPlayer();
     if (!me) return;
@@ -327,18 +319,24 @@ const Lobby = {
   // ── Avvio partita ─────────────────────────────────────────────────────────
   startGame() {
     if (!State.isHost || !State.allReady()) return;
-    const settings = { execMode: State.execMode, execSpeed: State.execSpeed };
+    const settings   = { execMode: State.execMode, execSpeed: State.execSpeed };
+    const damageDeck = this._buildDamageDeck();
+
+    // Imposta il mazzo danno localmente sull'host
+    State.damageDeck    = damageDeck;
+    State.damageDiscard = [];
+
     const tryFetch = (paths) => {
       if (!paths.length) {
-        Net.broadcast({ type: 'GAME_START', mapData: null, ...settings });
-        Game.init(null, settings);
+        Net.broadcast({ type: 'GAME_START', mapData: null, damageDeck, ...settings });
+        Game.init(null, { ...settings, damageDeck });
         return;
       }
       fetch(paths[0])
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(mapData => {
-          Net.broadcast({ type: 'GAME_START', mapData, ...settings });
-          Game.init(mapData, settings);
+          Net.broadcast({ type: 'GAME_START', mapData, damageDeck, ...settings });
+          Game.init(mapData, { ...settings, damageDeck });
         })
         .catch(() => tryFetch(paths.slice(1)));
     };

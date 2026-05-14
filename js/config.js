@@ -1,75 +1,67 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CONFIG.JS — v6.4
+//  CONFIG.JS — v6.5
 //
-//  FIX v6.4:
-//  ─ Composizione mazzo corretta secondo regolamento ufficiale (20 carte).
-//    Fonte: RoboRally Rulebook 2023, pag. 11 "Card Index".
-//    Modifiche rispetto alla v6.1:
-//      move1:       3 → 4
-//      move3:       2 → 1
-//      rotateRight: 3 → 4
-//      rotateLeft:  3 → 4
-//      again:       2 → 1
-//      recharge:    2 → 1  (= Power Up nel regolamento)
+//  STRUTTURA:
+//  ─ CONFIG  contiene i valori statici (percorsi asset, sprite, versione)
+//             + i valori di gioco come FALLBACK (usati se rules.json non carica).
+//             Non è più frozen perché Config.loadRules() li aggiorna a runtime.
+//  ─ RULES   è il global che contiene i parametri di gioco dopo il caricamento
+//             di rules.json. Include le definizioni WORM, composizione mazzi, ecc.
+//             Tutto il nuovo codice usa RULES; il vecchio usa CONFIG (compatibile).
+//  ─ Config.loadRules() carica assets/data/rules.json in modo asincrono e
+//             aggiorna sia RULES che i campi di CONFIG corrispondenti.
+//             Se il file non esiste o il fetch fallisce, il gioco usa i default.
+//
+//  UTILIZZO:
+//    await Config.loadRules();   // in DOMContentLoaded, prima di abilitare i bottoni
+//    RULES.worms                 // definizioni WORM
+//    CONFIG.cardsDealt           // backward-compatible con tutto il codice esistente
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CONFIG = Object.freeze({
+// ── Valori di default (fallback se rules.json non carica) ─────────────────
+const CONFIG = {
 
-  version:  '6.4',
+  version:  '6.5',
   gameName: 'BlindCircuit',
 
-  // ── Rete ──────────────────────────────────────────────────────────────────
+  // Rete
   peerPrefix: 'bc-v1-',
   peerDebug:  0,
 
-  // ── Partita ───────────────────────────────────────────────────────────────
+  // Partita
   minPlayers: 2,
   maxPlayers: 6,
 
-  // ── Programmazione ────────────────────────────────────────────────────────
+  // Programmazione
   cardsDealt:          9,
   registersCount:      5,
-  programmingTimerSec: 0,   // 0 = nessun timer — solo il pulsante Conferma
+  programmingTimerSec: 0,
 
-  // ── Energia ──────────────────────────────────────────────────────────────
+  // Energia
   startingEnergy:  3,
   maxEnergy:       10,
   rechargeAmount:  1,
 
-  // ── Danni ─────────────────────────────────────────────────────────────────
-  spamCardsOnFall: 2,
-  spamOnDamage:    1,
-  maxDamage:       5,
+  // Danni
+  spamCardsOnFall:    2,
+  spamOnDamage:       1,
+  boardLaserStrength: 1,
+  robotLaserStrength: 1,
 
-  // ── Composizione mazzo (20 carte per giocatore) ───────────────────────────
-  //
-  //  Carta          Copie   Note
-  //  ───────────    ──────  ─────────────────────────────────────────────────
-  //  Move 1           4     le più comuni
-  //  Move 2           3     mediamente rare
-  //  Move 3           1     rara e potente
-  //  Move Back        1     retrocede senza cambiare facing
-  //  Rotate Right     4     simmetrica con Rotate Left
-  //  Rotate Left      4
-  //  U-Turn           1     inversione 180°
-  //  Again            1     ripete il registro precedente
-  //  Power Up         1     +1 energia (nel codice: 'recharge')
-  //  ───────────    ──────
-  //  Totale          20
-  //
+  // Composizione mazzo giocatore
   deckComposition: {
-    move1:        4,   // FIX v6.4: era 3
-    move2:        3,
-    move3:        1,   // FIX v6.4: era 2
-    backUp:       1,
-    rotateRight:  4,   // FIX v6.4: era 3
-    rotateLeft:   4,   // FIX v6.4: era 3
-    uTurn:        1,
-    again:        1,   // FIX v6.4: era 2
-    recharge:     1,   // FIX v6.4: era 2 (= Power Up nel regolamento ufficiale)
+    move1:       4,
+    move2:       3,
+    move3:       1,
+    backUp:      1,
+    rotateRight: 4,
+    rotateLeft:  4,
+    uTurn:       1,
+    again:       1,
+    recharge:    1,
   },
 
-  // ── Personaggi ────────────────────────────────────────────────────────────
+  // Personaggi
   characters: [
     { id: 'spin',    name: 'Spin Bot',    color: '#3b82f6', emoji: '🤖', sprite: 'assets/robots/BlueBot.png'   },
     { id: 'hammer',  name: 'Hammer Bot',  color: '#ef4444', emoji: '🦾', sprite: 'assets/robots/RedBot.png'    },
@@ -79,11 +71,11 @@ const CONFIG = Object.freeze({
     { id: 'trundle', name: 'Trundle Bot', color: '#ec4899', emoji: '🎯', sprite: 'assets/robots/BrownBot.png'  },
   ],
 
-  // ── Tabellone ─────────────────────────────────────────────────────────────
+  // Tabellone
   defaultMap: 'exchange',
   cellSize:   40,
 
-  // ── Immagini tile ─────────────────────────────────────────────────────────
+  // Immagini tile
   tileImages: {
     floor_a:    'assets/tiles/pavement_A.png',
     floor_b:    'assets/tiles/pavement_B.png',
@@ -104,7 +96,6 @@ const CONFIG = Object.freeze({
 
   boardBackground: 'assets/img/Plancia.jpg',
 
-  // ── Carte ─────────────────────────────────────────────────────────────────
   cardFrame: null,
   cardBack:  null,
 
@@ -118,7 +109,106 @@ const CONFIG = Object.freeze({
     { id: 'uTurn',       name: 'U-Turn',        image: 'assets/cards/TurnU.png',     desc: 'Inversione 180°' },
     { id: 'again',       name: 'Ripeti',        image: 'assets/cards/Repeat.png',    desc: 'Ripete il registro precedente' },
     { id: 'recharge',    name: 'Power Up',      image: 'assets/cards/Recharge.png',  desc: '+1 energia' },
-    { id: 'spam',        name: 'SPAM',          image: null,                          desc: 'Esegue la prima carta non-SPAM dal tuo mazzo' },
-    { id: 'worm',        name: 'WORM',          image: null,                          desc: 'Blocca un registro al prossimo turno' },
+    { id: 'spam',        name: 'SPAM',          image: null, desc: 'Esegue la prima carta non-SPAM dal tuo mazzo' },
+    { id: 'worm',        name: 'WORM',          image: null, desc: 'Sequenza caotica prestabilita nel registro' },
   ],
-});
+};
+
+// ── RULES: parametri di gioco, sovrascrivibili via rules.json ─────────────
+// Inizializzato con gli stessi valori di CONFIG come default.
+let RULES = {
+  game: {
+    minPlayers:          CONFIG.minPlayers,
+    maxPlayers:          CONFIG.maxPlayers,
+    cardsDealt:          CONFIG.cardsDealt,
+    registersCount:      CONFIG.registersCount,
+    programmingTimerSec: CONFIG.programmingTimerSec,
+  },
+  energy: {
+    startingEnergy: CONFIG.startingEnergy,
+    maxEnergy:      CONFIG.maxEnergy,
+    rechargeAmount: CONFIG.rechargeAmount,
+  },
+  lasers: {
+    boardLaserStrength: CONFIG.boardLaserStrength,
+    robotLaserStrength: CONFIG.robotLaserStrength,
+  },
+  damage: {
+    spamCardsOnFall: CONFIG.spamCardsOnFall,
+    damageDeck: {
+      spam:         30,
+      worm_blitz:    3,
+      worm_spin:     3,
+      worm_chaos:    3,
+      worm_reverse:  2,
+      worm_drunk:    2,
+    },
+  },
+  playerDeck: { ...CONFIG.deckComposition },
+  worms: [],   // popolato da rules.json
+};
+
+// ── Config: loader asincrono ───────────────────────────────────────────────
+const Config = {
+
+  async loadRules() {
+    const paths = ['assets/data/rules.json', 'data/rules.json', 'rules.json'];
+    for (const path of paths) {
+      try {
+        const r = await fetch(path);
+        if (!r.ok) continue;
+        const data = await r.json();
+        this._apply(data);
+        console.log(`[Config] rules.json caricato da ${path}`);
+        return true;
+      } catch (_) {}
+    }
+    console.warn('[Config] rules.json non trovato — uso valori di default');
+    return false;
+  },
+
+  // Applica le regole caricate su RULES e sincronizza CONFIG per compatibilità
+  _apply(data) {
+    // Deep merge in RULES
+    RULES = this._merge(RULES, data);
+
+    // Sincronizza i campi di CONFIG usati dal codice esistente
+    if (data.game) {
+      if (data.game.minPlayers          != null) CONFIG.minPlayers          = data.game.minPlayers;
+      if (data.game.maxPlayers          != null) CONFIG.maxPlayers          = data.game.maxPlayers;
+      if (data.game.cardsDealt          != null) CONFIG.cardsDealt          = data.game.cardsDealt;
+      if (data.game.registersCount      != null) CONFIG.registersCount      = data.game.registersCount;
+      if (data.game.programmingTimerSec != null) CONFIG.programmingTimerSec = data.game.programmingTimerSec;
+    }
+    if (data.energy) {
+      if (data.energy.startingEnergy != null) CONFIG.startingEnergy = data.energy.startingEnergy;
+      if (data.energy.maxEnergy      != null) CONFIG.maxEnergy      = data.energy.maxEnergy;
+      if (data.energy.rechargeAmount != null) CONFIG.rechargeAmount = data.energy.rechargeAmount;
+    }
+    if (data.lasers) {
+      if (data.lasers.boardLaserStrength != null) CONFIG.boardLaserStrength = data.lasers.boardLaserStrength;
+      if (data.lasers.robotLaserStrength != null) CONFIG.robotLaserStrength = data.lasers.robotLaserStrength;
+    }
+    if (data.damage) {
+      if (data.damage.spamCardsOnFall != null) CONFIG.spamCardsOnFall = data.damage.spamCardsOnFall;
+    }
+    if (data.playerDeck) {
+      CONFIG.deckComposition = { ...CONFIG.deckComposition, ...data.playerDeck };
+    }
+  },
+
+  _merge(target, source) {
+    if (!source || typeof source !== 'object') return target;
+    const out = { ...target };
+    for (const [k, v] of Object.entries(source)) {
+      if (k === '_comment') continue;
+      if (v !== null && typeof v === 'object' && !Array.isArray(v) &&
+          typeof out[k] === 'object' && !Array.isArray(out[k])) {
+        out[k] = this._merge(out[k], v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  },
+};

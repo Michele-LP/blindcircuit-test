@@ -129,6 +129,10 @@
             <div class="prog-title" id="prog-title">Programmazione</div>
             <div class="spam-count" id="spam-count"></div>
           </div>
+          <div class="deck-info-row">
+            <span class="deck-info-sm" id="deck-info"></span>
+            <span class="deck-info-sm dmg" id="dmg-deck-info"></span>
+          </div>
           <div class="section-label-sm">Registri</div>
           <div class="registers-row-sm">
             <div class="reg-group-sm"><div class="reg-label-sm">P1</div><div class="reg-slot-sm" id="reg-0"></div></div>
@@ -191,7 +195,11 @@
 
   <!-- ── WIRING ─────────────────────────────────────────────────────────── -->
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Carica le regole di gioco da assets/data/rules.json.
+    // Se il file non esiste, si usano i valori di default di config.js.
+    await Config.loadRules();
+
     const vb = document.getElementById('version-badge');
     if (vb) vb.textContent = `v${CONFIG.version} — ${CONFIG.gameName}`;
 

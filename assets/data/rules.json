@@ -1,0 +1,109 @@
+{
+  "_comment": "BlindCircuit — regole di gioco. Modificabile in lobby o tramite settings.",
+  "version": "1.0",
+
+  "game": {
+    "minPlayers": 2,
+    "maxPlayers": 6,
+    "cardsDealt": 9,
+    "registersCount": 5,
+    "programmingTimerSec": 0
+  },
+
+  "energy": {
+    "startingEnergy": 3,
+    "maxEnergy": 10,
+    "rechargeAmount": 1
+  },
+
+  "lasers": {
+    "boardLaserStrength": 1,
+    "robotLaserStrength": 1
+  },
+
+  "damage": {
+    "spamCardsOnFall": 2,
+    "damageDeck": {
+      "spam":         30,
+      "worm_blitz":    3,
+      "worm_spin":     3,
+      "worm_chaos":    3,
+      "worm_reverse":  2,
+      "worm_drunk":    2
+    }
+  },
+
+  "playerDeck": {
+    "move1":       4,
+    "move2":       3,
+    "move3":       1,
+    "backUp":      1,
+    "rotateRight": 4,
+    "rotateLeft":  4,
+    "uTurn":       1,
+    "again":       1,
+    "recharge":    1
+  },
+
+  "worms": [
+    {
+      "id":     "worm_blitz",
+      "name":   "Blitz",
+      "symbol": "⚡",
+      "color":  "#f59e0b",
+      "sequence": [
+        { "type": "move",        "steps": 3 },
+        { "type": "rotateLeft"               },
+        { "type": "move",        "steps": 1 }
+      ]
+    },
+    {
+      "id":     "worm_spin",
+      "name":   "Spin",
+      "symbol": "🌀",
+      "color":  "#8b5cf6",
+      "sequence": [
+        { "type": "uTurn"                    },
+        { "type": "move",        "steps": 2 }
+      ]
+    },
+    {
+      "id":     "worm_chaos",
+      "name":   "Chaos",
+      "symbol": "🔀",
+      "color":  "#ef4444",
+      "sequence": [
+        { "type": "rotateRight"              },
+        { "type": "move",        "steps": 2 },
+        { "type": "rotateLeft"               },
+        { "type": "move",        "steps": 1 },
+        { "type": "rotateRight"              }
+      ]
+    },
+    {
+      "id":     "worm_reverse",
+      "name":   "Reverse",
+      "symbol": "🔄",
+      "color":  "#10b981",
+      "sequence": [
+        { "type": "uTurn"                    },
+        { "type": "move",        "steps": 3 },
+        { "type": "uTurn"                    }
+      ]
+    },
+    {
+      "id":     "worm_drunk",
+      "name":   "Drunk",
+      "symbol": "🥴",
+      "color":  "#ec4899",
+      "sequence": [
+        { "type": "rotateLeft"               },
+        { "type": "move",        "steps": 1 },
+        { "type": "rotateRight"              },
+        { "type": "move",        "steps": 1 },
+        { "type": "rotateLeft"               },
+        { "type": "move",        "steps": 1 }
+      ]
+    }
+  ]
+}

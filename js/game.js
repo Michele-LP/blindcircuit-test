@@ -1,16 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — v6.3
+//  GAME.JS — v6.5
 //
-//  LAYOUT 3 COLONNE:
-//  [#game-left: HUD + codice] | [canvas] | [#game-side: prog/exec]
-//  → nessuna top-bar separata → il canvas usa tutta l'altezza disponibile
-//
-//  FIX SINCRONIA:
-//  ─ SYNC_STATE ignorato durante State.execAnimating (niente salti di lerp)
-//  ─ REQUEST_SYNC risponde correttamente dall'host
-//  ─ EXEC_ADVANCE: solo non-host chiama Execution.advance()
-//    (host lo invia tramite execution.js waitForAdvance)
-//  ─ Polling sync 2.5s solo per non-host
+//  NOVITÀ:
+//  ─ init(): riceve e applica damageDeck/damageDiscard dalle settings
+//    (passate da Lobby.startGame() via GAME_START).
+//  ─ REQUEST_SYNC / SYNC_STATE: include wormSlots per ogni giocatore,
+//    così il sync periodico mantiene allineati anche i registri bloccati.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
@@ -18,8 +13,8 @@ const Game = (() => {
   let CELL = CONFIG.cellSize;
   let SZ   = Math.round(CELL * 0.85);
 
-  const LERP_BY_SPEED    = [0.07, 0.12, 0.18, 0.30];
-  const SPRITE_ROT_OFFSET = -Math.PI / 2; // sprite PNG puntano a Sud → offset -90°
+  const LERP_BY_SPEED     = [0.07, 0.12, 0.18, 0.30];
+  const SPRITE_ROT_OFFSET = -Math.PI / 2;
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
@@ -44,24 +39,16 @@ const Game = (() => {
     }
   }
 
-  // ── Calcola dimensione cella ottimale per layout 3 colonne ────────────────
-  //
-  // Layout: [left 180px + 12gap] | [canvas] | [right 260px + 16gap]
-  // Senza top-bar: availH ≈ viewport height − 40px padding verticale
-  //
   function _computeCellSize(mapW, mapH) {
     const LEFT_W  = 180 + 12;
     const RIGHT_W = 260 + 16;
     const H_PAD   = 80;
     const V_PAD   = 40;
-
     const screenW  = window.innerWidth  - H_PAD;
     const screenH  = window.innerHeight - V_PAD;
     const maxContW = 1400 - H_PAD;
-
     const availW = Math.max(300, Math.min(screenW, maxContW) - LEFT_W - RIGHT_W);
     const availH = Math.max(300, screenH);
-
     const byW = Math.floor(availW / mapW);
     const byH = Math.floor(availH / mapH);
     return Math.max(36, Math.min(byW, byH, 80));
@@ -109,26 +96,31 @@ const Game = (() => {
     init(mapData, settings = {}) {
       if (settings.execMode  !== undefined) State.execMode  = settings.execMode;
       if (settings.execSpeed !== undefined) State.execSpeed = settings.execSpeed;
+      // Ricevi il mazzo danno dai settings (l'host lo ha già impostato in State,
+      // i client lo ricevono qui dall'host tramite GAME_START)
+      if (settings.damageDeck) {
+        State.damageDeck    = settings.damageDeck;
+        State.damageDiscard = [];
+      }
 
       const mapW = mapData?.width  ?? 12;
       const mapH = mapData?.height ?? 12;
 
       CELL = _computeCellSize(mapW, mapH);
-      SZ   = Math.round(CELL * 1); //0.85);
+      SZ   = Math.round(CELL * 1);
 
       Board.CELL = CELL;
       Board.load(mapData);
       Board.preloadImages();
       preloadRobotSprites();
 
-      State.phase        = 'game';
-      State.round        = 0;
+      State.phase         = 'game';
+      State.round         = 0;
       State.execAnimating = false;
 
       canvas.width  = Board.W;
       canvas.height = Board.H;
 
-      // Adatta l'altezza di entrambi i pannelli laterali al canvas
       const gameLeft = document.getElementById('game-left');
       if (gameLeft) gameLeft.style.maxHeight = `${Board.H}px`;
       const gameSide = document.getElementById('game-side');
@@ -140,6 +132,7 @@ const Game = (() => {
         p.energy         = p.energy ?? CONFIG.startingEnergy;
         p.lastCheckpoint = 0;
         p.checkpoints    = [];
+        p.wormSlots      = p.wormSlots ?? {};   // preserva se già presenti
         initAnim(p);
       });
 
@@ -148,20 +141,13 @@ const Game = (() => {
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
 
-      // Pulsante "Avanti →" — solo host, gestito da execution.js
       const advBtn = document.getElementById('btn-advance');
-      if (advBtn) {
-        advBtn.style.display = 'none';
-        advBtn.onclick = () => Execution.advance();
-      }
+      if (advBtn) { advBtn.style.display = 'none'; advBtn.onclick = () => Execution.advance(); }
 
-      // Pulsante "Salta round" — solo host, solo per sviluppo/testing
       const skipBtn = document.getElementById('btn-skip-round');
       if (skipBtn) {
         skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
-        skipBtn.textContent   = '⏭ Salta round';
-        skipBtn.title         = 'Salta il round corrente — utile per testare rapidamente';
-        skipBtn.onclick       = () => Execution.skipToNextRound();
+        skipBtn.onclick = () => Execution.skipToNextRound();
       }
 
       setPanels(false, false);
@@ -173,21 +159,18 @@ const Game = (() => {
       if (State.isHost) {
         setTimeout(() => {
           State.round = 1;
-          Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0 });
+          // Primo ROUND_START: wormSlots tutti vuoti
+          const wormSlots = {};
+          for (const p of State.getPlayerList()) wormSlots[p.id] = {};
+          Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0, wormSlots });
         }, 1000);
       } else {
-        // ── Sync periodico (solo non-host) ──────────────────────────────────
-        // Chiede all'host le posizioni correnti ogni 2.5s.
-        // Serve a recuperare aggiornamenti persi via WebRTC.
-        // NOTA: Game.handleMessage ignora la risposta (SYNC_STATE) se
-        //       State.execAnimating = true, per non interrompere le animazioni.
         setInterval(() => {
           if (State.phase === 'game') Net.send({ type: 'REQUEST_SYNC' });
         }, 2500);
       }
     },
 
-    // ── Game loop ──────────────────────────────────────────────────────────
     _loop() {
       this._updateAnim();
       this._render();
@@ -196,11 +179,11 @@ const Game = (() => {
 
     _updateAnim() {
       const speed = Math.max(1, Math.min(4, State.execSpeed ?? 2));
-      const L = LERP_BY_SPEED[speed - 1];
+      const L     = LERP_BY_SPEED[speed - 1];
       for (const p of Object.values(State.players)) {
         if (p.cx === undefined) continue;
         initAnim(p);
-        const a = anim[p.id];
+        const a       = anim[p.id];
         a.renderX     = lerp(a.renderX,     p.cx * CELL,           L);
         a.renderY     = lerp(a.renderY,     p.cy * CELL,           L);
         a.renderAngle = lerpAngle(a.renderAngle, DIR_ANGLE[p.dir] ?? 0, L);
@@ -257,8 +240,6 @@ const Game = (() => {
         ctx.beginPath();
         ctx.moveTo(0, -half+4); ctx.lineTo(-6, -half+14); ctx.lineTo(6, -half+14);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(-half+6, 2, 7, 6); ctx.fillRect(half-13, 2, 7, 6);
         if (isMe) {
           this._rrect(ctx, -half, -half, SZ, SZ, 6);
           ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.stroke();
@@ -329,8 +310,10 @@ const Game = (() => {
       for (const p of State.getPlayerList()) {
         const el = document.getElementById(`hud-sub-${p.id}`);
         if (!el) continue;
-        const cp = (p.checkpoints ?? []).length;
-        el.textContent = `⚡${p.energy ?? CONFIG.startingEnergy}${cp > 0 ? ' ' + '★'.repeat(cp) : ''}`;
+        const cp     = (p.checkpoints ?? []).length;
+        const worms  = Object.values(p.wormSlots ?? {}).filter(Boolean).length;
+        const wormTx = worms > 0 ? ` 🦠${worms}` : '';
+        el.textContent = `⚡${p.energy ?? CONFIG.startingEnergy}${cp > 0 ? ' ' + '★'.repeat(cp) : ''}${wormTx}`;
       }
     },
 
@@ -365,20 +348,31 @@ const Game = (() => {
         regsEl.className = 'exec-registers';
         for (let i = 0; i < CONFIG.registersCount; i++) {
           const cardId = regs[i] ?? null;
+          const isWorm = typeof cardId === 'string' && cardId.startsWith('worm_');
           const def    = CONFIG.cards.find(c => c.id === cardId);
+          const wormDef = isWorm ? (RULES?.worms ?? []).find(w => w.id === cardId) : null;
           const slot   = document.createElement('div');
           slot.className = 'exec-card-slot';
           slot.id    = `exec-slot-${p.id}-${i}`;
-          slot.title = def?.name ?? '—';
-          if (def?.image) {
-            slot.style.backgroundImage = `url('${def.image}')`;
-            slot.style.backgroundSize  = 'contain';
-            slot.style.backgroundRepeat = 'no-repeat';
+          slot.title = isWorm ? `WORM: ${wormDef?.name ?? cardId}` : (def?.name ?? '—');
+          if (isWorm) {
+            slot.style.background = `${wormDef?.color ?? '#ef4444'}22`;
+            slot.style.borderColor = wormDef?.color ?? '#ef4444';
+            const sym = document.createElement('span');
+            sym.style.cssText = 'font-size:0.9rem;position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);';
+            sym.textContent = wormDef?.symbol ?? '🦠';
+            slot.appendChild(sym);
+          } else if (def?.image) {
+            slot.style.backgroundImage    = `url('${def.image}')`;
+            slot.style.backgroundSize     = 'contain';
+            slot.style.backgroundRepeat   = 'no-repeat';
             slot.style.backgroundPosition = 'center';
           }
           const abbr = document.createElement('span');
           abbr.className = 'card-abbr';
-          abbr.textContent = (def?.name ?? (cardId ? '?' : '—')).substring(0, 6).toUpperCase();
+          abbr.textContent = isWorm
+            ? (wormDef?.name ?? 'WORM').substring(0, 6).toUpperCase()
+            : (def?.name ?? (cardId ? '?' : '—')).substring(0, 6).toUpperCase();
           slot.appendChild(abbr);
           regsEl.appendChild(slot);
         }
@@ -397,20 +391,15 @@ const Game = (() => {
       if (title) title.textContent = `Registro P${stepIndex + 1} di ${CONFIG.registersCount}`;
     },
 
-    hideExecPanel() {
-      setPanels(false, false);
-      this.showAdvanceButton(false);
-    },
-
-    showAdvanceButton(show) {
+    hideExecPanel()      { setPanels(false, false); this.showAdvanceButton(false); },
+    showAdvanceButton(s) {
       const btn = document.getElementById('btn-advance');
-      if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+      if (btn) btn.style.display = s ? 'inline-flex' : 'none';
     },
 
     // ── Message routing ────────────────────────────────────────────────────
     handleMessage(fromId, msg) {
 
-      // HOST: risponde a richieste di sincronizzazione posizioni
       if (msg.type === 'REQUEST_SYNC' && State.isHost) {
         const positions = {};
         for (const [id, p] of Object.entries(State.players)) {
@@ -420,15 +409,13 @@ const Game = (() => {
             energy:         p.energy,
             checkpoints:    p.checkpoints    ?? [],
             lastCheckpoint: p.lastCheckpoint ?? 0,
+            wormSlots:      p.wormSlots      ?? {},   // includi wormSlots nel sync
           };
         }
         Net.sendTo(fromId, { type: 'SYNC_STATE', positions });
         return;
       }
 
-      // CLIENT: riceve stato sincronizzato dall'host.
-      // ⚠ IGNORATO se execAnimating = true → evita che il sync
-      //   salti il lerp durante l'animazione cella per cella.
       if (msg.type === 'SYNC_STATE') {
         if (State.execAnimating) return;
         for (const [id, pos] of Object.entries(msg.positions ?? {})) {
@@ -438,11 +425,11 @@ const Game = (() => {
           if (pos.energy         !== undefined) p.energy         = pos.energy;
           if (pos.checkpoints    !== undefined) p.checkpoints    = pos.checkpoints;
           if (pos.lastCheckpoint !== undefined) p.lastCheckpoint = pos.lastCheckpoint;
+          if (pos.wormSlots      !== undefined) p.wormSlots      = pos.wormSlots;
         }
         return;
       }
 
-      // CLIENT: host ha cliccato "Avanti →" → avanza l'animazione locale
       if (msg.type === 'EXEC_ADVANCE') {
         if (!State.isHost) Execution.advance();
         return;

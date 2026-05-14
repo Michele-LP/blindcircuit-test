@@ -231,25 +231,8 @@ canvas {
   border-radius: 6px;
 }
 
-/* Colonna destra
-   FIX v6.4: il pannello laterale viene abbassato di 11vh e spostato a destra di 9px
-   come richiesto. Su mobile (media query in fondo) margin-top viene azzerato per
-   evitare di spingere il pannello fuori dallo schermo. */
-#game-side {
-  flex: 1;
-  min-width: 230px;
-  max-width: 300px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: rgba(22,27,34,0.90);
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  padding: 6px 8px;
-  margin-top: 11vh;
-  margin-left: 9px;
-}
+/* Colonna destra */
+#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px;}
 #game-side::-webkit-scrollbar { width: 4px; }
 #game-side::-webkit-scrollbar-track { background: transparent; }
 #game-side::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
@@ -261,8 +244,7 @@ canvas {
   .game-main  { flex-direction: column; align-items: stretch; }
   #game-left  { width: 100%; max-height: none !important; flex-direction: row; flex-wrap: wrap; }
   .game-hud   { flex-direction: row; flex-wrap: wrap; }
-  /* Su mobile annulliamo il margin-top/left desktop per non spingere il pannello fuori */
-  #game-side  { max-width: 100%; max-height: none !important; margin-top: 8px; margin-left: 0; }
+  #game-side  { max-width: 100%; max-height: none !important; }
   .canvas-wrapper { padding: 6px; }
 }
 
@@ -402,3 +384,25 @@ canvas {
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   min-width: 320px;
 }
+
+/* ════ INDICATORI MAZZO (pannello programmazione) ═════════════════════════ */
+.deck-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: -2px;
+}
+.deck-info-sm {
+  font-size: 0.65rem;
+  font-family: 'Courier New', monospace;
+  color: #8b949e;
+  white-space: nowrap;
+}
+.deck-info-sm.dmg { color: #f87171; }
+
+/* ════ CARTA WORM nel registro ═════════════════════════════════════════════ */
+/* La worm-card usa lo stile inline generato da _wormCardEl(), quindi non
+   serve molto CSS qui, solo override eventuali conflitti con .game-card. */
+.worm-card { pointer-events: none; }
+.worm-card:hover { transform: none !important; }

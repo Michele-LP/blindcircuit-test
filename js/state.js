@@ -1,5 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  STATE.JS — v6.3
+//  STATE.JS — v6.5
+//
+//  NOVITÀ:
+//  ─ damageDeck / damageDiscard: mazzo danno condiviso tra tutti i giocatori.
+//    Contiene carte 'spam' e ID di WORM (es. 'worm_blitz').
+//    Inizializzato dall'host in Lobby.startGame() e inviato via GAME_START.
+//  ─ Per ogni player in State.players viene aggiunto:
+//    player.wormSlots = { 0: null, 1: null, 2: 'worm_blitz', ... }
+//    Chiave = indice registro (0-4), valore = ID worm o null.
+//    Persistono tra round: il WORM eseguito in round N libera lo slot in round N+1.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const State = {
@@ -10,10 +19,17 @@ const State = {
   phase: 'menu',
   board: null, round: 0, energyToken: null,
 
-  execMode:      'auto',   // 'auto' | 'manual'
-  execSpeed:     2,        // 1–4
-  execAdvance:   null,     // callback per avanzare manualmente
-  execAnimating: false,    // true durante Execution.animate() → blocca il sync
+  execMode:      'auto',
+  execSpeed:     2,
+  execAdvance:   null,
+  execAnimating: false,
+
+  // ── Mazzo danno condiviso ─────────────────────────────────────────────────
+  // Costruito dall'host in Lobby.startGame() a partire da RULES.damage.damageDeck.
+  // Ogni elemento è 'spam' oppure un ID worm (es. 'worm_blitz').
+  // Distribuito a tutti i client via GAME_START.
+  damageDeck:    [],
+  damageDiscard: [],
 
   myPlayer()    { return this.players[this.myId] ?? null; },
   getPlayerList() {
@@ -41,5 +57,7 @@ const State = {
     this.execSpeed     = 2;
     this.execAdvance   = null;
     this.execAnimating = false;
+    this.damageDeck    = [];
+    this.damageDiscard = [];
   },
 };
