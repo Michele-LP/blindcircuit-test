@@ -1,11 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — v6.5
+//  GAME.JS — v6.6
 //
 //  NOVITÀ:
-//  ─ init(): riceve e applica damageDeck/damageDiscard dalle settings
-//    (passate da Lobby.startGame() via GAME_START).
-//  ─ REQUEST_SYNC / SYNC_STATE: include wormSlots per ogni giocatore,
-//    così il sync periodico mantiene allineati anche i registri bloccati.
+//  ─ Timer di gioco: parte all'avvio della partita, mostra MM:SS in alto.
+//    Sincronizzato sull'orologio locale di ogni giocatore (start time
+//    inizializzato all'avvio di Game.init() → leggermente diverso tra host
+//    e guest a seconda della latenza di GAME_START, ma irrilevante).
+//  ─ Log eventi via Log.add() (notifications.js): inizio partita, vittoria.
+//  ─ Fix bottone "Avanti": ora si DISABILITA invece di sparire; sempre visibile
+//    in modalità manuale durante l'esecuzione. Niente più click accidentali su
+//    bottoni adiacenti.
+//  ─ Rimosso il bottone "Salta round" (era solo per testing iniziale).
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
@@ -21,6 +26,9 @@ const Game = (() => {
   const anim   = {};
   const _robotImgs = {};
   const DIR_ANGLE  = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
+
+  let _gameStartTime  = null;
+  let _timerInterval  = null;
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
@@ -44,14 +52,12 @@ const Game = (() => {
     const RIGHT_W = 260 + 16;
     const H_PAD   = 80;
     const V_PAD   = 40;
-    const screenW  = window.innerWidth  - H_PAD;
-    const screenH  = window.innerHeight - V_PAD;
+    const screenW = window.innerWidth  - H_PAD;
+    const screenH = window.innerHeight - V_PAD;
     const maxContW = 1400 - H_PAD;
     const availW = Math.max(300, Math.min(screenW, maxContW) - LEFT_W - RIGHT_W);
     const availH = Math.max(300, screenH);
-    const byW = Math.floor(availW / mapW);
-    const byH = Math.floor(availH / mapH);
-    return Math.max(36, Math.min(byW, byH, 80));
+    return Math.max(36, Math.min(Math.floor(availW / mapW), Math.floor(availH / mapH), 80));
   }
 
   function preloadRobotSprites() {
@@ -91,13 +97,32 @@ const Game = (() => {
     return em;
   }
 
+  // ── Timer di gioco ────────────────────────────────────────────────────────
+  function _startTimer() {
+    _gameStartTime = Date.now();
+    if (_timerInterval) clearInterval(_timerInterval);
+    const tEl = document.getElementById('game-timer');
+    const update = () => {
+      if (!tEl) return;
+      const elapsed = Math.floor((Date.now() - _gameStartTime) / 1000);
+      const hh = Math.floor(elapsed / 3600);
+      const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const ss = String(elapsed % 60).padStart(2, '0');
+      tEl.textContent = hh > 0 ? `⏱ ${hh}:${mm}:${ss}` : `⏱ ${mm}:${ss}`;
+    };
+    update();
+    _timerInterval = setInterval(update, 1000);
+  }
+
+  function _stopTimer() {
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  }
+
   return {
 
     init(mapData, settings = {}) {
       if (settings.execMode  !== undefined) State.execMode  = settings.execMode;
       if (settings.execSpeed !== undefined) State.execSpeed = settings.execSpeed;
-      // Ricevi il mazzo danno dai settings (l'host lo ha già impostato in State,
-      // i client lo ricevono qui dall'host tramite GAME_START)
       if (settings.damageDeck) {
         State.damageDeck    = settings.damageDeck;
         State.damageDiscard = [];
@@ -108,7 +133,6 @@ const Game = (() => {
 
       CELL = _computeCellSize(mapW, mapH);
       SZ   = Math.round(CELL * 1);
-
       Board.CELL = CELL;
       Board.load(mapData);
       Board.preloadImages();
@@ -128,11 +152,11 @@ const Game = (() => {
 
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
-        p.cx  = sp.x; p.cy  = sp.y; p.dir = sp.dir ?? 'N';
+        p.cx = sp.x; p.cy = sp.y; p.dir = sp.dir ?? 'N';
         p.energy         = p.energy ?? CONFIG.startingEnergy;
         p.lastCheckpoint = 0;
         p.checkpoints    = [];
-        p.wormSlots      = p.wormSlots ?? {};   // preserva se già presenti
+        p.wormSlots      = p.wormSlots ?? {};
         initAnim(p);
       });
 
@@ -141,14 +165,26 @@ const Game = (() => {
       this._buildHud();
       document.getElementById('game-code').textContent = State.roomCode;
 
+      // Bottone Avanti: gestito sempre da execution.js; in modalità manuale
+      // rimane visibile per tutta l'esecuzione, viene solo abilitato/disabilitato.
       const advBtn = document.getElementById('btn-advance');
-      if (advBtn) { advBtn.style.display = 'none'; advBtn.onclick = () => Execution.advance(); }
-
-      const skipBtn = document.getElementById('btn-skip-round');
-      if (skipBtn) {
-        skipBtn.style.display = State.isHost ? 'inline-flex' : 'none';
-        skipBtn.onclick = () => Execution.skipToNextRound();
+      if (advBtn) {
+        advBtn.style.display = 'none';
+        advBtn.disabled      = true;
+        advBtn.onclick       = () => Execution.advance();
       }
+
+      // Bottone "Salta round" rimosso in v6.6: era solo per debug iniziale.
+      const skipBtn = document.getElementById('btn-skip-round');
+      if (skipBtn) skipBtn.style.display = 'none';
+
+      // Log + clear precedenti
+      if (typeof Log !== 'undefined') {
+        Log.clear();
+        Log.add('Partita iniziata', { type: 'event' });
+      }
+
+      _startTimer();
 
       setPanels(false, false);
       Cards.preload();
@@ -159,7 +195,6 @@ const Game = (() => {
       if (State.isHost) {
         setTimeout(() => {
           State.round = 1;
-          // Primo ROUND_START: wormSlots tutti vuoti
           const wormSlots = {};
           for (const p of State.getPlayerList()) wormSlots[p.id] = {};
           Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0, wormSlots });
@@ -183,7 +218,7 @@ const Game = (() => {
       for (const p of Object.values(State.players)) {
         if (p.cx === undefined) continue;
         initAnim(p);
-        const a       = anim[p.id];
+        const a = anim[p.id];
         a.renderX     = lerp(a.renderX,     p.cx * CELL,           L);
         a.renderY     = lerp(a.renderY,     p.cy * CELL,           L);
         a.renderAngle = lerpAngle(a.renderAngle, DIR_ANGLE[p.dir] ?? 0, L);
@@ -273,7 +308,6 @@ const Game = (() => {
       ctx.closePath();
     },
 
-    // ── HUD ───────────────────────────────────────────────────────────────
     _buildHud() {
       const hud = document.getElementById('game-hud');
       if (!hud) return;
@@ -284,7 +318,9 @@ const Game = (() => {
         const isMe  = p.id === State.myId;
         const card  = document.createElement('div');
         card.className = 'hud-card' + (isMe ? ' is-me' : '');
-        card.dataset.pid = p.id;
+        card.dataset.pid     = p.id;
+        card.dataset.tooltip = `${p.nickname || '?'}${isMe ? ' (tu)' : ''}\n${char?.name ?? ''}`;
+        card.dataset.tooltipColor = color;
         const wrap = document.createElement('div');
         wrap.className = 'hud-robot-wrap';
         wrap.style.cssText = `background:${color}22;border:1px solid ${color}55;`;
@@ -317,10 +353,10 @@ const Game = (() => {
       }
     },
 
-    // ── Pannello laterale ──────────────────────────────────────────────────
     enterProgramming() {
       setPanels(true, false);
-      this.showAdvanceButton(false);
+      // In programmazione, il bottone Avanti viene nascosto (rilevante solo in esecuzione)
+      this.showAdvanceButton(false, false);
     },
 
     showExecPanel(registers) {
@@ -347,16 +383,19 @@ const Game = (() => {
         const regsEl = document.createElement('div');
         regsEl.className = 'exec-registers';
         for (let i = 0; i < CONFIG.registersCount; i++) {
-          const cardId = regs[i] ?? null;
-          const isWorm = typeof cardId === 'string' && cardId.startsWith('worm_');
-          const def    = CONFIG.cards.find(c => c.id === cardId);
-          const wormDef = isWorm ? (RULES?.worms ?? []).find(w => w.id === cardId) : null;
-          const slot   = document.createElement('div');
+          const cardId  = regs[i] ?? null;
+          const isWorm  = typeof cardId === 'string' && cardId.startsWith('worm_');
+          const def     = CONFIG.cards.find(c => c.id === cardId);
+          const wormDef = isWorm && typeof RULES !== 'undefined'
+                          ? (RULES?.worms ?? []).find(w => w.id === cardId) : null;
+          const slot = document.createElement('div');
           slot.className = 'exec-card-slot';
           slot.id    = `exec-slot-${p.id}-${i}`;
-          slot.title = isWorm ? `WORM: ${wormDef?.name ?? cardId}` : (def?.name ?? '—');
+          slot.dataset.tooltip = isWorm
+            ? `WORM: ${wormDef?.name ?? cardId}`
+            : (def ? `${def.name}: ${def.desc}` : '(vuoto)');
           if (isWorm) {
-            slot.style.background = `${wormDef?.color ?? '#ef4444'}22`;
+            slot.style.background  = `${wormDef?.color ?? '#ef4444'}22`;
             slot.style.borderColor = wormDef?.color ?? '#ef4444';
             const sym = document.createElement('span');
             sym.style.cssText = 'font-size:0.9rem;position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);';
@@ -391,10 +430,19 @@ const Game = (() => {
       if (title) title.textContent = `Registro P${stepIndex + 1} di ${CONFIG.registersCount}`;
     },
 
-    hideExecPanel()      { setPanels(false, false); this.showAdvanceButton(false); },
-    showAdvanceButton(s) {
+    hideExecPanel() {
+      setPanels(false, false);
+      this.showAdvanceButton(false, false);
+    },
+
+    // FIX v6.6: il bottone Avanti ora si DISABILITA invece di scomparire.
+    // visible: mostra/nasconde il bottone (rilevante solo in modalità manuale).
+    // enabled: stato cliccabile.
+    showAdvanceButton(visible, enabled = true) {
       const btn = document.getElementById('btn-advance');
-      if (btn) btn.style.display = s ? 'inline-flex' : 'none';
+      if (!btn) return;
+      btn.style.display = visible ? 'inline-flex' : 'none';
+      btn.disabled      = !enabled;
     },
 
     // ── Message routing ────────────────────────────────────────────────────
@@ -409,7 +457,7 @@ const Game = (() => {
             energy:         p.energy,
             checkpoints:    p.checkpoints    ?? [],
             lastCheckpoint: p.lastCheckpoint ?? 0,
-            wormSlots:      p.wormSlots      ?? {},   // includi wormSlots nel sync
+            wormSlots:      p.wormSlots      ?? {},
           };
         }
         Net.sendTo(fromId, { type: 'SYNC_STATE', positions });
@@ -443,5 +491,8 @@ const Game = (() => {
 
       Cards.handleGameMessage(fromId, msg);
     },
+
+    // Esposto per execution.js (per stopping timer su vittoria)
+    stopTimer() { _stopTimer(); },
   };
 })();

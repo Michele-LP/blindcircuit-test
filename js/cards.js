@@ -1,24 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  CARDS.JS — v6.5
+//  CARDS.JS — v6.6
 //
-//  NOVITÀ:
-//  ─ startRound(): riceve wormSlots da ROUND_START e pre-popola i registri
-//    con i WORM attivi. I registri con WORM non sono programmabili.
-//  ─ _renderRegisters(): mostra la carta WORM (con simbolo, colore, nome)
-//    nei registri bloccati. La carta non è cliccabile.
-//  ─ onCardClick(): salta i registri occupati da WORM (già non-null).
-//  ─ onRegisterClick(): impedisce la rimozione di carte WORM.
-//  ─ _updateConfirmBtn(): worm + carte contano tutti verso i 5 registri.
-//  ─ Indicatori UI: mazzo/scarto/SPAM personale e mazzo danno condiviso.
-//  ─ Fix pesca: già gestito da execution.js (deck_sync sincronizza discard).
+//  FIX v6.6:
+//  ─ Conteggio mazzo guasti corretto: ora include anche le WORM in volo
+//    (in wormSlots dei giocatori). Prima sembrava che le carte sparissero
+//    quando una WORM veniva assegnata ad uno slot.
+//  ─ Tooltip custom su carte WORM e SPAM (via data-tooltip).
+//
+//  Dipendenze:
+//  ─ Log.add(), Toast.show() (notifications.js) — opzionali, fallback se assenti.
+//  ─ RULES (config.js) per le definizioni WORM.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Cards = {
 
-  _imgs:    {},
-  _confirmed: {},   // solo su host: { playerId: registers[] }
+  _imgs:      {},
+  _confirmed: {},
 
-  // ── Precaricamento immagini ───────────────────────────────────────────────
   preload() {
     const srcs = [CONFIG.cardFrame, CONFIG.cardBack,
       ...CONFIG.cards.filter(c => c.image).map(c => c.image)];
@@ -36,7 +34,6 @@ const Cards = {
     if (pp && pp.style.display !== 'none') this.render();
   },
 
-  // ── Mazzo ─────────────────────────────────────────────────────────────────
   _buildDeck() {
     const deck = [];
     for (const [type, qty] of Object.entries(CONFIG.deckComposition))
@@ -57,7 +54,7 @@ const Cards = {
     if (!player.deck) {
       player.deck      = this._buildDeck();
       player.discard   = [];
-      player.wormSlots = {};   // inizializzato una volta sola
+      player.wormSlots = {};
     }
     player.hand      = [];
     player.registers = new Array(CONFIG.registersCount).fill(null);
@@ -65,7 +62,6 @@ const Cards = {
     player.energy    = player.energy ?? CONFIG.startingEnergy;
   },
 
-  // Pesca n carte. Se il deck finisce a metà, rimescola il discard e continua.
   _draw(player, n) {
     for (let i = 0; i < n; i++) {
       if (player.deck.length === 0) {
@@ -77,14 +73,12 @@ const Cards = {
     }
   },
 
-  // ── Inizio round ──────────────────────────────────────────────────────────
   startRound(msg) {
     const me = State.myPlayer();
     if (!me) return;
 
     if (!me.deck) this._initPlayerCards(me);
 
-    // Aggiorna i wormSlots di TUTTI i giocatori (necessario per display corretto)
     if (msg.wormSlots) {
       for (const [id, slots] of Object.entries(msg.wormSlots)) {
         if (State.players[id]) State.players[id].wormSlots = slots;
@@ -92,17 +86,14 @@ const Cards = {
     }
     if (!me.wormSlots) me.wormSlots = {};
 
-    // Reset confermati per questo round
     for (const p of Object.values(State.players)) p.confirmed = false;
 
-    // Scarta la mano del round precedente
     me.discard.push(...me.hand);
     me.hand      = [];
     me.confirmed = false;
 
     if (State.isHost) this._confirmed = {};
 
-    // Pre-popola i registri: worm = bloccato, null = libero da programmare
     me.registers = Array.from({ length: CONFIG.registersCount },
       (_, i) => me.wormSlots[i] ?? null
     );
@@ -113,14 +104,19 @@ const Cards = {
     this._draw(me, CONFIG.cardsDealt);
     this._updateDeckInfo(me);
 
+    // Log inizio round (solo nel log, non come toast)
+    if (typeof Log !== 'undefined') Log.add(`Round ${msg.round ?? 1} — programmazione`, { type: 'event' });
+
     Game.enterProgramming();
     this.render();
     this.updateOthersStatus();
   },
 
   // ── Indicatori mazzo ──────────────────────────────────────────────────────
+  // FIX v6.6: il totale del mazzo danno include anche le WORM in volo
+  // (negli wormSlots dei giocatori), altrimenti il totale sembra calare
+  // quando una WORM viene assegnata ad uno slot.
   _updateDeckInfo(me) {
-    // Conta le SPAM nel ciclo totale del giocatore (deck + discard + hand)
     const allCards  = [...(me.deck ?? []), ...(me.discard ?? []), ...(me.hand ?? [])];
     const spamCount = allCards.filter(c => c === 'spam').length;
     const deckCount = (me.deck ?? []).length;
@@ -129,21 +125,31 @@ const Cards = {
     const spamEl = document.getElementById('spam-count');
     if (spamEl) {
       spamEl.textContent = spamCount > 0 ? `⚠ ${spamCount} SPAM` : '';
+      spamEl.dataset.tooltip = spamCount > 0
+        ? `Hai ${spamCount} carte SPAM nel ciclo. Quando vengono giocate, eseguono la prima carta dal tuo mazzo (e si auto-eliminano).`
+        : 'Nessuna SPAM nel ciclo';
     }
 
     const deckEl = document.getElementById('deck-info');
     if (deckEl) {
       deckEl.textContent = `🃏 ${deckCount}  ♻ ${discCount}`;
+      deckEl.dataset.tooltip = `Il tuo mazzo:\n🃏 ${deckCount} carte da pescare\n♻ ${discCount} carte negli scarti\nIn totale ${deckCount + discCount + (me.hand?.length ?? 0)} carte in circolazione.`;
     }
 
     const dmgEl = document.getElementById('dmg-deck-info');
     if (dmgEl) {
-      const dmgTotal = (State.damageDeck?.length ?? 0) + (State.damageDiscard?.length ?? 0);
-      dmgEl.textContent = `🦠 Guasti: ${State.damageDeck?.length ?? 0}/${dmgTotal}`;
+      // FIX: somma le WORM tenute nei wormSlots di TUTTI i giocatori
+      const inPlay = State.getPlayerList()
+        .flatMap(p => Object.values(p.wormSlots ?? {}))
+        .filter(Boolean).length;
+      const deckN  = State.damageDeck?.length    ?? 0;
+      const discN  = State.damageDiscard?.length ?? 0;
+      const total  = deckN + discN + inPlay;
+      dmgEl.textContent = `🦠 Guasti: ${deckN} (${discN}♻ ${inPlay}⏳)`;
+      dmgEl.dataset.tooltip = `Mazzo danno condiviso:\n🦠 ${deckN} da pescare\n♻ ${discN} scartate\n⏳ ${inPlay} in slot WORM dei giocatori\nTotale: ${total}`;
     }
   },
 
-  // ── Interazione carte / registri ──────────────────────────────────────────
   onCardClick(handIndex) {
     const me = State.myPlayer();
     if (!me || me.confirmed) return;
@@ -152,7 +158,6 @@ const Cards = {
     const inRegsCount = me.registers.filter(r => r === cardId).length;
     const inHandCount = me.hand.filter(c => c === cardId).length;
     if (inRegsCount >= inHandCount) return;
-    // indexOf(null) salta automaticamente i registri con WORM (non sono null)
     const slot = me.registers.indexOf(null);
     if (slot === -1) return;
     me.registers[slot] = cardId;
@@ -165,13 +170,12 @@ const Cards = {
     if (!me || me.confirmed) return;
     const card = me.registers[regIndex];
     if (!card) return;
-    if (typeof card === 'string' && card.startsWith('worm_')) return; // WORM: immovibile
+    if (typeof card === 'string' && card.startsWith('worm_')) return;
     me.registers[regIndex] = null;
     this.render();
     this._updateConfirmBtn();
   },
 
-  // ── Conferma ──────────────────────────────────────────────────────────────
   confirm() {
     const me = State.myPlayer();
     if (!me || me.confirmed) return;
@@ -194,11 +198,11 @@ const Cards = {
     if (me?.confirmed) this._confirmed[State.myId] = me.registers;
     const allIds = State.getPlayerList().map(p => p.id);
     if (allIds.every(id => this._confirmed[id])) {
+      if (typeof Log !== 'undefined') Log.add('Tutti pronti — esecuzione', { type: 'event' });
       Execution.compute(this._confirmed);
     }
   },
 
-  // ── Stato degli altri giocatori ───────────────────────────────────────────
   updateOthersStatus() {
     const el = document.getElementById('others-status');
     if (!el) return;
@@ -228,15 +232,11 @@ const Cards = {
       if (idx !== -1) available.splice(idx, 1);
     }
     const pool = this._shuffle(available);
-    me.registers = me.registers.map(r => {
-      if (r !== null) return r;   // già occupato (carta o worm)
-      return pool.shift() ?? null;
-    });
+    me.registers = me.registers.map(r => r !== null ? r : (pool.shift() ?? null));
     this.render();
     this.confirm();
   },
 
-  // ── Rendering ─────────────────────────────────────────────────────────────
   render() {
     const me = State.myPlayer();
     if (!me) return;
@@ -252,7 +252,6 @@ const Cards = {
       slot.innerHTML = '';
       const cardId = me.registers[i];
       if (!cardId) continue;
-
       if (typeof cardId === 'string' && cardId.startsWith('worm_')) {
         slot.appendChild(this._wormCardEl(cardId));
       } else {
@@ -261,16 +260,29 @@ const Cards = {
     }
   },
 
-  // Carta WORM nel registro: visivamente distinta, non rimovibile
   _wormCardEl(wormId) {
-    const wormDef = (RULES?.worms ?? []).find(w => w.id === wormId);
-    const color   = wormDef?.color ?? '#ef4444';
-    const symbol  = wormDef?.symbol ?? '🦠';
-    const name    = wormDef?.name ?? 'WORM';
+    const wormDef = (typeof RULES !== 'undefined' ? RULES?.worms : null);
+    const def     = wormDef?.find(w => w.id === wormId);
+    const color   = def?.color  ?? '#ef4444';
+    const symbol  = def?.symbol ?? '🦠';
+    const name    = def?.name   ?? 'WORM';
+
+    // Costruisci descrizione della sequenza per il tooltip
+    const seqDesc = (def?.sequence ?? []).map(step => {
+      switch (step.type) {
+        case 'move':        return `Avanza ${step.steps ?? 1}`;
+        case 'backUp':      return `Indietro ${step.steps ?? 1}`;
+        case 'rotateLeft':  return 'Ruota ←';
+        case 'rotateRight': return 'Ruota →';
+        case 'uTurn':       return 'U-Turn';
+        default:            return step.type;
+      }
+    }).join(' → ');
 
     const el = document.createElement('div');
     el.className = 'game-card worm-card';
-    el.title     = `WORM: ${name}`;
+    el.dataset.tooltip      = `WORM: ${name}\nSequenza: ${seqDesc || '(nessuna)'}`;
+    el.dataset.tooltipColor = color;
     el.style.cssText = [
       `background: ${color}22`,
       `border: 2px solid ${color}`,
@@ -290,12 +302,10 @@ const Cards = {
     const iconEl = document.createElement('div');
     iconEl.style.cssText = 'font-size: 1.4rem; line-height: 1;';
     iconEl.textContent = symbol;
-
     const nameEl = document.createElement('div');
     nameEl.className = 'card-name-area';
     nameEl.style.cssText = `color: ${color}; font-size: 0.42rem; font-weight: 800;`;
     nameEl.textContent = name.toUpperCase();
-
     el.appendChild(iconEl);
     el.appendChild(nameEl);
     return el;
@@ -322,7 +332,7 @@ const Cards = {
     const def = CONFIG.cards.find(c => c.id === cardId);
     const el  = document.createElement('div');
     el.className = 'game-card' + (dimmed && !isReg ? ' used' : '');
-    el.title     = def?.desc ?? cardId;
+    el.dataset.tooltip = def ? `${def.name}: ${def.desc}` : cardId;
 
     if (CONFIG.cardFrame) {
       el.style.backgroundImage = `url('${CONFIG.cardFrame}')`;
@@ -337,7 +347,6 @@ const Cards = {
       icon.style.backgroundImage = `url('${def.image}')`;
       el.appendChild(icon);
     }
-
     const nameDiv = document.createElement('div');
     nameDiv.className = 'card-name-area';
     nameDiv.textContent = (def?.name ?? cardId).toUpperCase();
@@ -357,7 +366,6 @@ const Cards = {
     me = me ?? State.myPlayer();
     const btn = document.getElementById('btn-confirm');
     if (!btn || !me) return;
-    // Tutti e 5 i registri devono essere non-null (carte E worm contano entrambi)
     const filled = me.registers.filter(Boolean).length;
     btn.disabled = filled < CONFIG.registersCount || me.confirmed;
     const status = document.getElementById('prog-status');
@@ -371,19 +379,16 @@ const Cards = {
     }
   },
 
-  // ── Dispatcher messaggi ───────────────────────────────────────────────────
   handleGameMessage(fromId, msg) {
     switch (msg.type) {
       case 'ROUND_START':
         this.startRound(msg);
         break;
-
       case 'PROGRAM_REGISTERS':
         if (State.isHost) this.onGuestConfirmed(fromId, msg);
         if (State.players[fromId]) State.players[fromId].confirmed = true;
         this.updateOthersStatus();
         break;
-
       case 'EXECUTE_PLAN':
         if (!State.isHost) Execution.receive(msg);
         break;

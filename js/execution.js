@@ -1,40 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  EXECUTION.JS — v6.5
+//  EXECUTION.JS — v6.6
 //
-//  NOVITÀ rispetto a v6.4:
-//
-//  ── Sistema danno riscritto ────────────────────────────────────────────────
-//  Prima: laser → spam direttamente nel discard personale.
-//  Ora:   laser → drawDamage() → pesca dal mazzo danno CONDIVISO (damageDeck):
-//    · carta 'spam'   → va nel discard personale del giocatore (come prima)
-//    · carta 'worm_x' → va in wormSlots[currentReg] del giocatore
-//                        → nel PROSSIMO round, quel registro è bloccato
-//
-//  ── execWorm(simShared, sim, id, reg, wormId) ──────────────────────────────
-//  Esegue la sequenza caotica del WORM (definita in RULES.worms) al posto della
-//  carta programmazione. Dopo l'esecuzione, lo slot viene liberato e il WORM
-//  va nel damageDiscard condiviso (per essere rimescolato in futuro).
-//
-//  ── Loop compute() ────────────────────────────────────────────────────────
-//  Per ogni registro, per ogni giocatore: se registers[reg] è un WORM ID
-//  (inizia con 'worm_') esegue execWorm, altrimenti esegue la carta normale.
-//
-//  ── Fix execCard('spam') ───────────────────────────────────────────────────
-//  La carta pescata dal deck durante l'esecuzione SPAM viene aggiunta al discard
-//  del giocatore (prima andava persa), garantendo che nessuna carta sparisca.
-//
-//  ── deck_sync aggiornato ──────────────────────────────────────────────────
-//  Ora sincronizza anche il discard (non solo il deck), e include un'azione
-//  'damage_deck_sync' che allinea damageDeck/damageDiscard su tutti i client.
-//
-//  ── Forza laser configurabile ─────────────────────────────────────────────
-//  fireLasers e fireRobotWeapons leggono la forza da RULES (boardLaserStrength,
-//  robotLaserStrength) con fallback a CONFIG. Per i laser di bordo, se il JSON
-//  della mappa specifica 'strength', usa quello (più specifico vince).
-//
-//  ── wormSlots in ROUND_START ──────────────────────────────────────────────
-//  onExecutionEnd invia i wormSlots aggiornati di ogni giocatore insieme al
-//  ROUND_START, così tutti i client mostrano correttamente i registri bloccati.
+//  NOVITÀ v6.6:
+//  ─ Eventi loggati e notificati: damage, fall, checkpoint, vittoria producono
+//    voci nel Log (e Toast per i danni). I colori sono quelli del personaggio
+//    colpito → si vede a colpo d'occhio chi ha subito cosa.
+//  ─ Bottone Avanti: rimane visibile per tutta l'esecuzione in modalità manuale,
+//    si attiva/disattiva invece di scomparire (fix UX).
+//  ─ Notifica vittoria via toast + log.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Execution = (() => {
@@ -62,8 +35,6 @@ const Execution = (() => {
     return a;
   }
 
-  // ── Utility ──────────────────────────────────────────────────────────────
-
   function wallBlocks(cx, cy, dir) {
     if (Board.wallsAt(cx, cy).includes(dir)) return true;
     const v = VECS[dir];
@@ -79,15 +50,18 @@ const Execution = (() => {
     return { cx: s.startCx, cy: s.startCy };
   }
 
+  // ── Helpers per Log/Toast ─────────────────────────────────────────────────
+  // Estrae nome e colore del giocatore per messaggi user-friendly.
+  function _playerInfo(id) {
+    const p    = State.players[id];
+    const char = p ? CONFIG.characters.find(c => c.id === p.character) : null;
+    return {
+      name:  p?.nickname || '?',
+      color: char?.color || '#6b7280',
+    };
+  }
+
   // ── Pesca dal mazzo danno condiviso ───────────────────────────────────────
-  //
-  // Viene chiamata ogni volta che un laser (di bordo o di robot) colpisce.
-  // 'regIndex' indica il registro in esecuzione al momento del colpo:
-  //   - carta 'spam'   → discard personale (pescata nei round futuri)
-  //   - carta 'worm_x' → wormSlots[regIndex] (blocca il registro nel prossimo round)
-  //
-  // Restituisce un'azione { type:'damage', id, card, regIndex } da inserire nel piano.
-  // Restituisce null se il mazzo e lo scarto sono entrambi vuoti (non dovrebbe succedere).
   function drawDamage(simShared, simPlayer, regIndex) {
     if (!simShared.damageDeck.length) {
       if (!simShared.damageDiscard.length) return null;
@@ -95,33 +69,26 @@ const Execution = (() => {
       simShared.damageDiscard = [];
     }
     const card = simShared.damageDeck.pop();
-
     if (card === 'spam') {
       simPlayer.discard = simPlayer.discard ?? [];
       simPlayer.discard.unshift('spam');
     } else {
-      // WORM: blocca il registro corrente per il prossimo round
       simPlayer.wormSlots = simPlayer.wormSlots ?? {};
       simPlayer.wormSlots[regIndex] = card;
     }
-
     return { type: 'damage', id: simPlayer.id, card, regIndex };
   }
 
   // ── Esecuzione sequenza WORM ──────────────────────────────────────────────
-  //
-  // Esegue la sequenza caotica definita in RULES.worms[wormId].sequence.
-  // Ogni passo riusa le funzioni esistenti (moveSteps, rotLeft/Right/U).
-  // Al termine: libera lo slot e manda il WORM nel damageDiscard condiviso.
   function execWorm(simShared, sim, id, reg, wormId) {
     const s       = sim[id];
-    const wormDef = (RULES?.worms ?? []).find(w => w.id === wormId);
+    const wormDef = (typeof RULES !== 'undefined' ? RULES?.worms : null)?.find(w => w.id === wormId);
     const actions = [];
 
     if (wormDef) {
       for (const step of wormDef.sequence) {
         switch (step.type) {
-          case 'move':        actions.push(...moveSteps(sim, id, step.steps ?? 1));  break;
+          case 'move':        actions.push(...moveSteps(sim, id, step.steps ?? 1));    break;
           case 'backUp':      actions.push(...moveSteps(sim, id, -(step.steps ?? 1))); break;
           case 'rotateLeft':  s.dir = rotLeft(s.dir);  actions.push({ type:'rotate', id, dir: s.dir }); break;
           case 'rotateRight': s.dir = rotRight(s.dir); actions.push({ type:'rotate', id, dir: s.dir }); break;
@@ -129,35 +96,30 @@ const Execution = (() => {
         }
       }
     }
-
-    // Libera lo slot e restituisce il WORM al mazzo danno (scarto)
     if (s.wormSlots) s.wormSlots[reg] = null;
     simShared.damageDiscard.push(wormId);
-    actions.push({ type: 'worm_clear', id, reg });
-
+    actions.push({ type: 'worm_clear', id, reg, wormId });
     return actions;
   }
 
   // ── Push a catena ─────────────────────────────────────────────────────────
-
   function tryPush(sim, pushedId, dir, actions) {
     const s = sim[pushedId];
     if (wallBlocks(s.cx, s.cy, dir)) return false;
     const vec = VECS[dir];
     const nx  = s.cx + vec[0];
     const ny  = s.cy + vec[1];
-
     if (!Board.inBounds(nx, ny)) {
       const rp = respawnPos(s);
       s.cx = rp.cx; s.cy = rp.cy;
-      for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
+      for (let j = 0; j < CONFIG.spamCardsOnFall; j++) (s.discard = s.discard ?? []).unshift('spam');
       actions.push({ type:'fall', id: pushedId, cx: nx, cy: ny, respawnCx: rp.cx, respawnCy: rp.cy });
       return true;
     }
     if (Board.cellType(nx, ny) === 'pit') {
       const rp = respawnPos(s);
       s.cx = rp.cx; s.cy = rp.cy;
-      for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
+      for (let j = 0; j < CONFIG.spamCardsOnFall; j++) (s.discard = s.discard ?? []).unshift('spam');
       actions.push({ type:'fall', id: pushedId, cx: nx, cy: ny, respawnCx: rp.cx, respawnCy: rp.cy });
       return true;
     }
@@ -167,8 +129,6 @@ const Execution = (() => {
     actions.push({ type:'move', id: pushedId, cx: nx, cy: ny });
     return true;
   }
-
-  // ── Carte programmazione ──────────────────────────────────────────────────
 
   function execCard(sim, id, card, prevCard) {
     const s = sim[id];
@@ -182,15 +142,12 @@ const Execution = (() => {
       case 'uTurn':       { s.dir = rotU(s.dir);     return [{ type:'rotate', id, dir:s.dir }]; }
       case 'again':
         if (prevCard) return execCard(sim, id, prevCard, null);
-        return execCard(sim, id, 'spam', null);   // registro 1: agisce come SPAM
+        return execCard(sim, id, 'spam', null);
       case 'recharge': {
         s.energy = Math.min((s.energy ?? 0) + CONFIG.rechargeAmount, CONFIG.maxEnergy);
         return [{ type:'energy', id, energy: s.energy }];
       }
       case 'spam': {
-        // Pesca dal deck del giocatore (non dal discard).
-        // FIX: la carta pescata viene aggiunta al discard PRIMA di essere eseguita,
-        // così non scompare dal mazzo del giocatore tra un round e l'altro.
         if (!s.deck?.length) {
           if (!s.discard?.length) return [];
           s.deck    = _shuffle([...s.discard]);
@@ -199,10 +156,9 @@ const Execution = (() => {
         while (s.deck.length) {
           const drawn = s.deck.pop();
           if (drawn !== 'spam') {
-            s.discard.push(drawn);          // carta "usata": torna nel ciclo
+            s.discard.push(drawn);
             return execCard(sim, id, drawn, null);
           }
-          // Altra SPAM pescata: viene eliminata dal ciclo (chain)
         }
         return [];
       }
@@ -210,28 +166,21 @@ const Execution = (() => {
     }
   }
 
-  // ── Movimento con spinta ──────────────────────────────────────────────────
-
   function moveSteps(sim, id, steps) {
     const s   = sim[id];
     const dir = steps > 0 ? s.dir : OPP[s.dir];
     const vec = VECS[dir];
     const actions = [];
-
     for (let i = 0; i < Math.abs(steps); i++) {
       if (wallBlocks(s.cx, s.cy, dir)) break;
       const nx  = s.cx + vec[0];
       const ny  = s.cy + vec[1];
       const oob = !Board.inBounds(nx, ny);
       const pit = !oob && Board.cellType(nx, ny) === 'pit';
-
       if (oob || pit) {
         const rp = respawnPos(s);
         s.cx = rp.cx; s.cy = rp.cy;
-        for (let j = 0; j < CONFIG.spamCardsOnFall; j++) {
-          s.discard = s.discard ?? [];
-          s.discard.unshift('spam');
-        }
+        for (let j = 0; j < CONFIG.spamCardsOnFall; j++) (s.discard = s.discard ?? []).unshift('spam');
         actions.push({ type:'fall', id, cx: nx, cy: ny, respawnCx: rp.cx, respawnCy: rp.cy });
         break;
       }
@@ -247,60 +196,53 @@ const Execution = (() => {
     return actions;
   }
 
-  // ── Nastri trasportatori ──────────────────────────────────────────────────
-
   function applyConveyors(sim, beltType) {
     const actions = [];
     const onBelt  = Object.values(sim).filter(s => Board._cellAt(s.cx, s.cy)?.type === beltType);
     if (!onBelt.length) return actions;
-
     const intended = new Map();
     for (const s of onBelt) {
       const cell = Board._cellAt(s.cx, s.cy);
       const dir  = cell.dir;
       if (wallBlocks(s.cx, s.cy, dir)) { intended.set(s.id, null); continue; }
       const vec = VECS[dir];
-      const nx  = s.cx + vec[0];
-      const ny  = s.cy + vec[1];
+      const nx  = s.cx + vec[0], ny = s.cy + vec[1];
       if (!Board.inBounds(nx, ny)) { intended.set(s.id, null); continue; }
       intended.set(s.id, { nx, ny });
     }
     const destCount = new Map();
-    for (const [, move] of intended) {
-      if (!move) continue;
-      const k = `${move.nx},${move.ny}`;
+    for (const [, m] of intended) {
+      if (!m) continue;
+      const k = `${m.nx},${m.ny}`;
       destCount.set(k, (destCount.get(k) || 0) + 1);
     }
-    for (const [id, move] of intended) {
-      if (!move) continue;
-      if ((destCount.get(`${move.nx},${move.ny}`) || 0) > 1) intended.set(id, null);
+    for (const [id, m] of intended) {
+      if (m && (destCount.get(`${m.nx},${m.ny}`) || 0) > 1) intended.set(id, null);
     }
-    for (const [id, move] of intended) {
-      if (!move) continue;
-      const isBlocked = Object.values(sim).some(o => {
-        if (o.id === id || o.cx !== move.nx || o.cy !== move.ny) return false;
+    for (const [id, m] of intended) {
+      if (!m) continue;
+      const blocked = Object.values(sim).some(o => {
+        if (o.id === id || o.cx !== m.nx || o.cy !== m.ny) return false;
         const tm = intended.get(o.id);
         return tm === undefined || tm === null;
       });
-      if (isBlocked) intended.set(id, null);
+      if (blocked) intended.set(id, null);
     }
-    for (const [id, move] of intended) {
-      if (!move) continue;
+    for (const [id, m] of intended) {
+      if (!m) continue;
       const s = sim[id];
-      if (Board.cellType(move.nx, move.ny) === 'pit') {
+      if (Board.cellType(m.nx, m.ny) === 'pit') {
         const rp = respawnPos(s);
         s.cx = rp.cx; s.cy = rp.cy;
         for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
-        actions.push({ type:'fall', id, cx: move.nx, cy: move.ny, respawnCx: rp.cx, respawnCy: rp.cy });
+        actions.push({ type:'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy });
       } else {
-        s.cx = move.nx; s.cy = move.ny;
-        actions.push({ type:'move', id, cx: move.nx, cy: move.ny });
+        s.cx = m.nx; s.cy = m.ny;
+        actions.push({ type:'move', id, cx: m.nx, cy: m.ny });
       }
     }
     return actions;
   }
-
-  // ── Push panel ────────────────────────────────────────────────────────────
 
   function applyPushPanels(sim, regIndex) {
     const actions = [];
@@ -315,8 +257,6 @@ const Execution = (() => {
     return actions;
   }
 
-  // ── Ingranaggi ────────────────────────────────────────────────────────────
-
   function applyGears(sim) {
     const actions = [];
     for (const s of Object.values(sim)) {
@@ -328,13 +268,9 @@ const Execution = (() => {
     return actions;
   }
 
-  // ── Laser di bordo ────────────────────────────────────────────────────────
-  // Ora chiama drawDamage() invece di aggiungere spam direttamente.
-  // 'strength' viene letto prima dal JSON della mappa (laser-specifico),
-  // poi da RULES.lasers.boardLaserStrength, infine da CONFIG come fallback.
   function fireLasers(simShared, sim, currentReg) {
     const actions = [];
-    const defaultStrength = RULES?.lasers?.boardLaserStrength ?? CONFIG.boardLaserStrength ?? 1;
+    const defaultStrength = (typeof RULES !== 'undefined' ? RULES?.lasers?.boardLaserStrength : null) ?? CONFIG.boardLaserStrength ?? 1;
     for (const laser of Board.data?.lasers ?? []) {
       const strength = laser.strength ?? defaultStrength;
       const vec = VECS[laser.dir];
@@ -344,7 +280,7 @@ const Execution = (() => {
         if (hit) {
           for (let i = 0; i < strength; i++) {
             const dmg = drawDamage(simShared, hit, currentReg);
-            if (dmg) actions.push(dmg);
+            if (dmg) { dmg.source = 'board_laser'; actions.push(dmg); }
           }
           break;
         }
@@ -355,25 +291,21 @@ const Execution = (() => {
     return actions;
   }
 
-  // ── Laser dei robot ───────────────────────────────────────────────────────
-  // Stesso meccanismo: drawDamage invece di spam diretto.
-  // Forza configurabile via RULES.lasers.robotLaserStrength.
   function fireRobotWeapons(simShared, sim, currentReg) {
     const actions  = [];
-    const strength = RULES?.lasers?.robotLaserStrength ?? CONFIG.robotLaserStrength ?? 1;
+    const strength = (typeof RULES !== 'undefined' ? RULES?.lasers?.robotLaserStrength : null) ?? CONFIG.robotLaserStrength ?? 1;
     for (const id of turnOrder()) {
       const shooter = sim[id];
       if (!shooter) continue;
       if (wallBlocks(shooter.cx, shooter.cy, shooter.dir)) continue;
       const vec = VECS[shooter.dir];
-      let lx = shooter.cx + vec[0];
-      let ly = shooter.cy + vec[1];
+      let lx = shooter.cx + vec[0], ly = shooter.cy + vec[1];
       while (Board.inBounds(lx, ly)) {
         const hit = Object.values(sim).find(s => s.id !== id && s.cx === lx && s.cy === ly);
         if (hit) {
           for (let i = 0; i < strength; i++) {
             const dmg = drawDamage(simShared, hit, currentReg);
-            if (dmg) actions.push(dmg);
+            if (dmg) { dmg.source = 'robot_laser'; dmg.shooterId = id; actions.push(dmg); }
           }
           break;
         }
@@ -384,8 +316,6 @@ const Execution = (() => {
     return actions;
   }
 
-  // ── Checkpoint ────────────────────────────────────────────────────────────
-
   function checkCheckpoint(s) {
     const cps  = Board.data?.checkpoints ?? [];
     const next = (s.lastCheckpoint ?? 0) + 1;
@@ -395,8 +325,6 @@ const Execution = (() => {
     return { type:'checkpoint', id: s.id, order: next, won: next >= cps.length };
   }
 
-  // ── Ordine di turno ───────────────────────────────────────────────────────
-
   function turnOrder() {
     const all  = State.getPlayerList();
     const idx  = all.findIndex(p => p.id === State.energyToken);
@@ -405,32 +333,43 @@ const Execution = (() => {
   }
 
   // ── Applicazione azioni (durante l'animazione) ────────────────────────────
-
+  // I log/toast vengono emessi qui perché applyAction è chiamata su TUTTI i
+  // client (host + guest), così tutti vedono le stesse notifiche.
   function applyAction(a) {
-    // damage_deck_sync non ha un id giocatore: gestito come caso speciale
     if (a.type === 'damage_deck_sync') {
       State.damageDeck    = a.damageDeck;
       State.damageDiscard = a.damageDiscard;
       return;
     }
-
     const p = State.players[a.id];
     if (!p) return;
 
     switch (a.type) {
       case 'move':   p.cx = a.cx; p.cy = a.cy; break;
       case 'rotate': p.dir = a.dir; break;
-      case 'fall':   p.cx = a.respawnCx; p.cy = a.respawnCy; break;
-      case 'checkpoint':
+
+      case 'fall': {
+        p.cx = a.respawnCx; p.cy = a.respawnCy;
+        const info = _playerInfo(a.id);
+        if (typeof Log   !== 'undefined') Log.add(`${info.name} è caduto`, { color: info.color, type: 'damage' });
+        if (typeof Toast !== 'undefined') Toast.show(`💥 ${info.name} è caduto`, { color: info.color });
+        break;
+      }
+
+      case 'checkpoint': {
         p.lastCheckpoint = a.order;
         if (!p.checkpoints) p.checkpoints = [];
         if (!p.checkpoints.includes(a.order)) p.checkpoints.push(a.order);
+        const info = _playerInfo(a.id);
+        if (typeof Log   !== 'undefined') Log.add(`${info.name} ha raggiunto il checkpoint ${a.order}`, { color: info.color, type: 'event' });
+        if (typeof Toast !== 'undefined') Toast.show(`⭐ ${info.name} → checkpoint ${a.order}`, { color: info.color });
         break;
+      }
+
       case 'energy': p.energy = a.energy; break;
 
-      case 'damage':
-        // Danno ricevuto da un laser (bordo o robot).
-        // 'spam' → discard personale. 'worm_x' → blocca registro.
+      case 'damage': {
+        // Aggiorna lo stato locale del giocatore
         if (a.card === 'spam') {
           if (!p.discard) p.discard = [];
           p.discard.unshift('spam');
@@ -438,12 +377,34 @@ const Execution = (() => {
           if (!p.wormSlots) p.wormSlots = {};
           p.wormSlots[a.regIndex] = a.card;
         }
+        // Notifiche
+        const info = _playerInfo(a.id);
+        const src  = a.source === 'robot_laser' ? 'laser robot' : 'laser bordo';
+        if (a.card === 'spam') {
+          const msg = `${info.name} colpito (${src}) — SPAM`;
+          if (typeof Log   !== 'undefined') Log.add(msg, { color: info.color, type: 'damage' });
+          if (typeof Toast !== 'undefined') Toast.show(`🎯 ${msg}`, { color: info.color });
+        } else {
+          // WORM
+          const wormDef = (typeof RULES !== 'undefined' ? RULES?.worms : null)?.find(w => w.id === a.card);
+          const wormName = wormDef?.name ?? a.card;
+          const msg = `${info.name} colpito (${src}) — WORM ${wormName} → P${a.regIndex + 1}`;
+          if (typeof Log   !== 'undefined') Log.add(msg, { color: info.color, type: 'damage' });
+          if (typeof Toast !== 'undefined') Toast.show(`🦠 ${msg}`, { color: info.color, duration: 4000 });
+        }
         break;
+      }
 
-      case 'worm_clear':
-        // Il WORM ha eseguito: libera lo slot (il damage_deck_sync sincronizza il mazzo).
+      case 'worm_clear': {
         if (p.wormSlots) p.wormSlots[a.reg] = null;
+        if (a.wormId && typeof Log !== 'undefined') {
+          const info = _playerInfo(a.id);
+          const wormDef = (typeof RULES !== 'undefined' ? RULES?.worms : null)?.find(w => w.id === a.wormId);
+          Log.add(`${info.name}: WORM ${wormDef?.name ?? a.wormId} eseguito (P${a.reg + 1} liberato)`,
+                  { color: info.color, type: 'event' });
+        }
         break;
+      }
 
       case 'deck_sync':
         if (a.deck    !== undefined) p.deck    = a.deck;
@@ -452,12 +413,13 @@ const Execution = (() => {
     }
   }
 
-  // ── Fine esecuzione ───────────────────────────────────────────────────────
-
   function onExecutionEnd(winner) {
     if (winner) {
-      const name = State.players[winner]?.nickname ?? 'Qualcuno';
-      document.getElementById('win-player').textContent = name;
+      const info = _playerInfo(winner);
+      if (typeof Log   !== 'undefined') Log.add(`🏆 VITTORIA di ${info.name}!`, { color: info.color, type: 'event' });
+      if (typeof Toast !== 'undefined') Toast.show(`🏆 ${info.name} ha vinto!`, { color: info.color, duration: 8000 });
+      if (typeof Game?.stopTimer === 'function') Game.stopTimer();
+      document.getElementById('win-player').textContent = info.name;
       UI.show('win');
       return;
     }
@@ -466,30 +428,22 @@ const Execution = (() => {
       const idx     = players.findIndex(p => p.id === State.energyToken);
       State.energyToken = players[(idx + 1) % players.length]?.id ?? State.energyToken;
       State.round++;
-
-      // Raccoglie i wormSlots aggiornati di ogni giocatore da inviare con ROUND_START.
-      // I client li applicano in Cards.startRound() per bloccare i registri corretti.
       const wormSlots = {};
       for (const p of players) wormSlots[p.id] = p.wormSlots ?? {};
-
       setTimeout(() => {
         Net.sendToAll({ type: 'ROUND_START', round: State.round, timerSec: 0, wormSlots });
       }, 800);
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
   return {
 
     compute(allRegisters) {
       if (!State.isHost) return;
-
-      // Stato condiviso del mazzo danno (copia locale per la simulazione)
       const simShared = {
         damageDeck:    [...State.damageDeck],
         damageDiscard: [...State.damageDiscard],
       };
-
       const sim = {};
       State.getPlayerList().forEach((p, i) => {
         const sp = Board.startPos(i);
@@ -513,31 +467,23 @@ const Execution = (() => {
 
       for (let reg = 0; reg < CONFIG.registersCount; reg++) {
         const regActions = [];
-
-        // ── A. Attivazione carte / WORM ──────────────────────────────────────
         for (const id of order) {
           const card = sim[id]?.registers[reg];
           if (!card) continue;
-
           if (typeof card === 'string' && card.startsWith('worm_')) {
-            // Registro bloccato da WORM: esegue la sequenza caotica
             regActions.push(...execWorm(simShared, sim, id, reg, card));
           } else {
             regActions.push(...execCard(sim, id, card, prevCard[id]));
             if (card !== 'again') prevCard[id] = card;
           }
         }
-
-        // ── B. Elementi del tabellone (ordine fisso da regolamento) ──────────
         regActions.push(...applyConveyors(sim, 'express_conveyor'));
-        regActions.push(...applyConveyors(sim, 'express_conveyor')); // 2° passata
+        regActions.push(...applyConveyors(sim, 'express_conveyor'));
         regActions.push(...applyConveyors(sim, 'conveyor'));
         regActions.push(...applyPushPanels(sim, reg));
         regActions.push(...applyGears(sim));
         regActions.push(...fireLasers(simShared, sim, reg));
         regActions.push(...fireRobotWeapons(simShared, sim, reg));
-
-        // ── C. Fine registro ─────────────────────────────────────────────────
         for (const id of order) {
           const s = sim[id];
           if (Board.cellType(s.cx, s.cy) === 'recharge') {
@@ -551,26 +497,15 @@ const Execution = (() => {
           regActions.push(cp);
           if (cp.won) winner = id;
         }
-
         plan.push(regActions);
         if (winner) break;
       }
 
-      // ── Step finale: sincronizzazione deck + mazzo danno ──────────────────
       const syncActions = [
-        // Deck personali (deck + discard aggiornati dalla simulazione)
         ...Object.values(sim).map(s => ({
-          type:    'deck_sync',
-          id:      s.id,
-          deck:    [...s.deck],
-          discard: [...s.discard],
+          type: 'deck_sync', id: s.id, deck: [...s.deck], discard: [...s.discard],
         })),
-        // Mazzo danno condiviso
-        {
-          type:          'damage_deck_sync',
-          damageDeck:    [...simShared.damageDeck],
-          damageDiscard: [...simShared.damageDiscard],
-        },
+        { type: 'damage_deck_sync', damageDeck: [...simShared.damageDeck], damageDiscard: [...simShared.damageDiscard] },
       ];
       plan.push(syncActions);
 
@@ -591,24 +526,30 @@ const Execution = (() => {
       const actionDelay = ACTION_DELAYS[speed - 1];
       const regDelay    = REG_DELAYS[speed - 1];
       const wait        = ms => new Promise(res => setTimeout(res, ms));
+      const animSteps   = plan.length - 1;
 
-      // L'ultimo step è sempre il deck/damage sync (invisibile).
-      const animSteps = plan.length - 1;
+      // ── FIX v6.6: bottone Avanti sempre visibile in modalità manuale ──────
+      // Si attiva/disattiva, non scompare → niente click accidentali su altri pulsanti.
+      const isManual    = State.execMode === 'manual' && State.isHost;
+      if (isManual) Game.showAdvanceButton(true, false);   // visibile, disabilitato
 
       const waitForAdvance = () => new Promise(res => {
         State.execAdvance = () => {
           State.execAdvance = null;
           if (State.isHost) {
-            Game.showAdvanceButton(false);
+            Game.showAdvanceButton(true, false);            // disabilita durante l'animazione del prossimo registro
             Net.broadcast({ type:'EXEC_ADVANCE' });
           }
           res();
         };
-        if (State.isHost) Game.showAdvanceButton(true);
+        if (State.isHost) Game.showAdvanceButton(true, true);  // abilita per il click
       });
 
       State.execAnimating = true;
       Game.showExecPanel(registers);
+
+      if (typeof Log !== 'undefined') Log.add(`— Esecuzione round ${State.round} —`, { type: 'event' });
+
       await wait(500);
 
       for (let reg = 0; reg < plan.length; reg++) {
@@ -618,23 +559,21 @@ const Execution = (() => {
         for (const action of plan[reg]) {
           if (token.value) return;
           applyAction(action);
-          // Azioni di sync: invisibili, nessuna pausa
           if (action.type === 'deck_sync' || action.type === 'damage_deck_sync') continue;
           const visual = action.type === 'move' || action.type === 'rotate' || action.type === 'fall';
           await wait(visual ? actionDelay : Math.max(60, actionDelay * 0.15));
         }
-
         if (token.value) return;
         if (reg < animSteps - 1) {
           if (State.execMode === 'manual') await waitForAdvance();
           else await wait(regDelay);
         }
       }
-
       if (token.value) return;
+
       State.execAnimating = false;
       State.execAdvance   = null;
-      Game.showAdvanceButton(false);
+      Game.showAdvanceButton(false, false);
       Game.hideExecPanel();
       onExecutionEnd(winner);
     },
@@ -648,7 +587,7 @@ const Execution = (() => {
       _cancelled.value    = true;
       State.execAnimating = false;
       State.execAdvance   = null;
-      Game.showAdvanceButton(false);
+      Game.showAdvanceButton(false, false);
       Game.hideExecPanel();
       const pp = document.getElementById('prog-panel');
       if (pp) pp.style.display = 'none';

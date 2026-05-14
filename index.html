@@ -97,25 +97,39 @@
     Layout 3 colonne:
     ┌──────────────┬───────────────────────┬──────────────┐
     │  #game-left  │        canvas         │  #game-side  │
-    │  codice      │  (usa tutta           │  prog/exec   │
-    │  HUD robot   │   l'altezza)          │  pannelli    │
+    │  timer       │                       │  prog/exec   │
+    │  codice      │                       │              │
+    │  HUD robot   │                       │  controlli   │
+    │  log         │                       │              │
     └──────────────┴───────────────────────┴──────────────┘
-    Nessuna top-bar → il canvas ha tutta l'altezza disponibile
   -->
   <div id="scr-game" class="screen game-screen">
     <div class="game-main">
 
-      <!-- ① Colonna sinistra: codice stanza + HUD giocatori -->
+      <!-- ① Colonna sinistra: timer + codice + HUD + log -->
       <div id="game-left">
+
+        <!-- Timer di partita (in cima) -->
+        <div class="game-timer" id="game-timer">⏱ 00:00</div>
+
+        <!-- Codice partita -->
         <div class="room-code-widget small">
           <span class="room-code-label">Codice:</span>
           <span class="room-code-value small" id="game-code">------</span>
           <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
         </div>
+
+        <!-- HUD giocatori -->
         <div class="game-hud" id="game-hud"></div>
+
+        <!-- Log azioni / eventi -->
+        <div class="action-log-section">
+          <div class="action-log-title">📋 Log</div>
+          <div id="action-log" class="action-log"></div>
+        </div>
       </div>
 
-      <!-- ② Canvas (dimensione calcolata da _computeCellSize) -->
+      <!-- ② Canvas -->
       <div class="canvas-wrapper">
         <canvas id="canvas" width="480" height="480"></canvas>
       </div>
@@ -156,15 +170,10 @@
         <!-- Esecuzione -->
         <div id="exec-panel" class="side-panel" style="display:none"></div>
 
-        <!-- Controlli -->
+        <!-- Controlli (solo Avanti — il "Salta round" è stato rimosso in v6.6) -->
         <div class="game-controls-sm">
-          <!-- Avanti: solo host in modalità manuale, gestito da execution.js -->
-          <button class="btn btn-primary" id="btn-advance" style="display:none">
+          <button class="btn btn-primary" id="btn-advance" style="display:none" disabled>
             Avanti →
-          </button>
-          <!-- Salta round: solo host, solo per testing -->
-          <button class="btn btn-secondary btn-sm" id="btn-skip-round" style="display:none">
-            ⏭ Salta round
           </button>
         </div>
 
@@ -187,6 +196,7 @@
   <script src="js/state.js"></script>
   <script src="js/net.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/notifications.js"></script>
   <script src="js/lobby.js"></script>
   <script src="js/board.js"></script>
   <script src="js/cards.js"></script>
@@ -197,7 +207,7 @@
   <script>
   document.addEventListener('DOMContentLoaded', async () => {
     // Carica le regole di gioco da assets/data/rules.json.
-    // Se il file non esiste, si usano i valori di default di config.js.
+    // Se non disponibile, si usano i default di config.js.
     await Config.loadRules();
 
     const vb = document.getElementById('version-badge');
