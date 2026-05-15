@@ -1,14 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  STATE.JS — v6.5
-//
-//  NOVITÀ:
-//  ─ damageDeck / damageDiscard: mazzo danno condiviso tra tutti i giocatori.
-//    Contiene carte 'spam' e ID di WORM (es. 'worm_blitz').
-//    Inizializzato dall'host in Lobby.startGame() e inviato via GAME_START.
-//  ─ Per ogni player in State.players viene aggiunto:
-//    player.wormSlots = { 0: null, 1: null, 2: 'worm_blitz', ... }
-//    Chiave = indice registro (0-4), valore = ID worm o null.
-//    Persistono tra round: il WORM eseguito in round N libera lo slot in round N+1.
+//  STATE.JS — v6.7
 // ═══════════════════════════════════════════════════════════════════════════
 
 const State = {
@@ -24,12 +15,14 @@ const State = {
   execAdvance:   null,
   execAnimating: false,
 
-  // ── Mazzo danno condiviso ─────────────────────────────────────────────────
-  // Costruito dall'host in Lobby.startGame() a partire da RULES.damage.damageDeck.
-  // Ogni elemento è 'spam' oppure un ID worm (es. 'worm_blitz').
-  // Distribuito a tutti i client via GAME_START.
+  // Mazzo danno condiviso (v6.5)
   damageDeck:    [],
   damageDiscard: [],
+
+  // Spettatori (v6.7) — chi si connette a partita avviata
+  isSpectator:    false,      // true se QUESTO client è spettatore
+  spectators:     {},         // solo host: { peerId: true }
+  spectatorCount: 0,          // broadcast a tutti
 
   myPlayer()    { return this.players[this.myId] ?? null; },
   getPlayerList() {
@@ -42,22 +35,25 @@ const State = {
 
   reset() {
     if (this.peer) { try { this.peer.destroy(); } catch (_) {} }
-    this.peer          = null;
-    this.conns         = {};
-    this.conn          = null;
-    this.myId          = null;
-    this.isHost        = false;
-    this.roomCode      = null;
-    this.players       = {};
-    this.phase         = 'menu';
-    this.board         = null;
-    this.round         = 0;
-    this.energyToken   = null;
-    this.execMode      = 'auto';
-    this.execSpeed     = 2;
-    this.execAdvance   = null;
-    this.execAnimating = false;
-    this.damageDeck    = [];
-    this.damageDiscard = [];
+    this.peer           = null;
+    this.conns          = {};
+    this.conn           = null;
+    this.myId           = null;
+    this.isHost         = false;
+    this.roomCode       = null;
+    this.players        = {};
+    this.phase          = 'menu';
+    this.board          = null;
+    this.round          = 0;
+    this.energyToken    = null;
+    this.execMode       = 'auto';
+    this.execSpeed      = 2;
+    this.execAdvance    = null;
+    this.execAnimating  = false;
+    this.damageDeck     = [];
+    this.damageDiscard  = [];
+    this.isSpectator    = false;
+    this.spectators     = {};
+    this.spectatorCount = 0;
   },
 };

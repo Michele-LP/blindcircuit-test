@@ -1,397 +1,166 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  CARDS.JS — v6.6
-//
-//  FIX v6.6:
-//  ─ Conteggio mazzo guasti corretto: ora include anche le WORM in volo
-//    (in wormSlots dei giocatori). Prima sembrava che le carte sparissero
-//    quando una WORM veniva assegnata ad uno slot.
-//  ─ Tooltip custom su carte WORM e SPAM (via data-tooltip).
-//
-//  Dipendenze:
-//  ─ Log.add(), Toast.show() (notifications.js) — opzionali, fallback se assenti.
-//  ─ RULES (config.js) per le definizioni WORM.
 // ═══════════════════════════════════════════════════════════════════════════
-
 const Cards = {
+  _imgs:{}, _confirmed:{},
 
-  _imgs:      {},
-  _confirmed: {},
+  preload(){
+    const srcs=[CONFIG.cardFrame,CONFIG.cardBack,...CONFIG.cards.filter(c=>c.image).map(c=>c.image)];
+    for(const src of srcs){if(!src||this._imgs[src])continue;const i=new Image();i.onload=()=>this._safeRender();i.src=src;this._imgs[src]=i;}
+  },
+  _safeRender(){const pp=document.getElementById('prog-panel');if(pp&&pp.style.display!=='none')this.render();},
 
-  preload() {
-    const srcs = [CONFIG.cardFrame, CONFIG.cardBack,
-      ...CONFIG.cards.filter(c => c.image).map(c => c.image)];
-    for (const src of srcs) {
-      if (!src || this._imgs[src]) continue;
-      const img = new Image();
-      img.onload = () => this._safeRender();
-      img.src = src;
-      this._imgs[src] = img;
+  _buildDeck(){const d=[];for(const[t,q]of Object.entries(CONFIG.deckComposition))for(let i=0;i<q;i++)d.push(t);return this._shuffle(d);},
+  _shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;},
+
+  _initPlayerCards(p){
+    if(!p.deck){p.deck=this._buildDeck();p.discard=[];p.wormSlots={};}
+    p.hand=[];p.registers=new Array(CONFIG.registersCount).fill(null);p.confirmed=false;p.energy=p.energy??CONFIG.startingEnergy;
+  },
+
+  _draw(p,n){for(let i=0;i<n;i++){if(!p.deck.length){if(!p.discard.length)break;p.deck=this._shuffle([...p.discard]);p.discard=[];}p.hand.push(p.deck.pop());}},
+
+  startRound(msg){
+    const me=State.myPlayer();if(!me)return;
+    if(!me.deck)this._initPlayerCards(me);
+    if(msg.wormSlots){for(const[id,sl]of Object.entries(msg.wormSlots))if(State.players[id])State.players[id].wormSlots=sl;}
+    if(!me.wormSlots)me.wormSlots={};
+    for(const p of Object.values(State.players))p.confirmed=false;
+    me.discard.push(...me.hand);me.hand=[];me.confirmed=false;
+    if(State.isHost)this._confirmed={};
+    me.registers=Array.from({length:CONFIG.registersCount},(_,i)=>me.wormSlots[i]??null);
+    const title=document.getElementById('prog-title');if(title)title.textContent=`Round ${msg.round??1}`;
+    this._draw(me,CONFIG.cardsDealt);this._updateDeckInfo(me);
+    if(typeof Log!=='undefined')Log.add(`Round ${msg.round??1} — programmazione`,{type:'event'});
+    Game.enterProgramming();this.render();this.updateOthersStatus();
+  },
+
+  _updateDeckInfo(me){
+    const all=[...(me.deck??[]),...(me.discard??[]),...(me.hand??[])];
+    const spam=all.filter(c=>c==='spam').length,dk=(me.deck??[]).length,dc=(me.discard??[]).length;
+    const se=document.getElementById('spam-count');
+    if(se){se.textContent=spam>0?`⚠ ${spam} SPAM`:'';se.dataset.tooltip=spam>0?`${spam} carte SPAM nel ciclo`:'Nessuna SPAM';}
+    const de=document.getElementById('deck-info');
+    if(de){de.textContent=`🃏 ${dk}  ♻ ${dc}`;de.dataset.tooltip=`Mazzo: ${dk}\nScarti: ${dc}\nTotale: ${dk+dc+(me.hand?.length??0)}`;}
+    const dm=document.getElementById('dmg-deck-info');
+    if(dm){
+      const inPlay=State.getPlayerList().flatMap(p=>Object.values(p.wormSlots??{})).filter(Boolean).length;
+      const dn=State.damageDeck?.length??0,dd=State.damageDiscard?.length??0,tot=dn+dd+inPlay;
+      dm.textContent=`🦠 ${dn} (${dd}♻ ${inPlay}⏳)`;
+      dm.dataset.tooltip=`Mazzo danno:\n${dn} da pescare\n${dd} scartate\n${inPlay} in slot WORM\nTotale: ${tot}`;
     }
   },
 
-  _safeRender() {
-    const pp = document.getElementById('prog-panel');
-    if (pp && pp.style.display !== 'none') this.render();
+  onCardClick(hi){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    const cid=me.hand[hi];if(!cid)return;
+    const inR=me.registers.filter(r=>r===cid).length,inH=me.hand.filter(c=>c===cid).length;
+    if(inR>=inH)return;
+    const s=me.registers.indexOf(null);if(s===-1)return;
+    me.registers[s]=cid;this.render();this._updateConfirmBtn();
   },
 
-  _buildDeck() {
-    const deck = [];
-    for (const [type, qty] of Object.entries(CONFIG.deckComposition))
-      for (let i = 0; i < qty; i++) deck.push(type);
-    return this._shuffle(deck);
+  onRegisterClick(ri){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    const c=me.registers[ri];if(!c)return;
+    if(typeof c==='string'&&c.startsWith('worm_'))return;
+    me.registers[ri]=null;this.render();this._updateConfirmBtn();
   },
 
-  _shuffle(arr) {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
+  confirm(){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    if(me.registers.some(r=>r===null)){document.getElementById('prog-status').textContent='Riempi tutti i registri liberi.';return;}
+    me.confirmed=true;
+    Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers});
+    document.getElementById('prog-status').textContent='✅ Confermato! In attesa…';
+    document.getElementById('btn-confirm').disabled=true;
+    this.render();this.updateOthersStatus();
   },
 
-  _initPlayerCards(player) {
-    if (!player.deck) {
-      player.deck      = this._buildDeck();
-      player.discard   = [];
-      player.wormSlots = {};
-    }
-    player.hand      = [];
-    player.registers = new Array(CONFIG.registersCount).fill(null);
-    player.confirmed = false;
-    player.energy    = player.energy ?? CONFIG.startingEnergy;
-  },
-
-  _draw(player, n) {
-    for (let i = 0; i < n; i++) {
-      if (player.deck.length === 0) {
-        if (!player.discard.length) break;
-        player.deck    = this._shuffle([...player.discard]);
-        player.discard = [];
-      }
-      player.hand.push(player.deck.pop());
-    }
-  },
-
-  startRound(msg) {
-    const me = State.myPlayer();
-    if (!me) return;
-
-    if (!me.deck) this._initPlayerCards(me);
-
-    if (msg.wormSlots) {
-      for (const [id, slots] of Object.entries(msg.wormSlots)) {
-        if (State.players[id]) State.players[id].wormSlots = slots;
-      }
-    }
-    if (!me.wormSlots) me.wormSlots = {};
-
-    for (const p of Object.values(State.players)) p.confirmed = false;
-
-    me.discard.push(...me.hand);
-    me.hand      = [];
-    me.confirmed = false;
-
-    if (State.isHost) this._confirmed = {};
-
-    me.registers = Array.from({ length: CONFIG.registersCount },
-      (_, i) => me.wormSlots[i] ?? null
-    );
-
-    const title = document.getElementById('prog-title');
-    if (title) title.textContent = `Round ${msg.round ?? 1}`;
-
-    this._draw(me, CONFIG.cardsDealt);
-    this._updateDeckInfo(me);
-
-    // Log inizio round (solo nel log, non come toast)
-    if (typeof Log !== 'undefined') Log.add(`Round ${msg.round ?? 1} — programmazione`, { type: 'event' });
-
-    Game.enterProgramming();
-    this.render();
-    this.updateOthersStatus();
-  },
-
-  // ── Indicatori mazzo ──────────────────────────────────────────────────────
-  // FIX v6.6: il totale del mazzo danno include anche le WORM in volo
-  // (negli wormSlots dei giocatori), altrimenti il totale sembra calare
-  // quando una WORM viene assegnata ad uno slot.
-  _updateDeckInfo(me) {
-    const allCards  = [...(me.deck ?? []), ...(me.discard ?? []), ...(me.hand ?? [])];
-    const spamCount = allCards.filter(c => c === 'spam').length;
-    const deckCount = (me.deck ?? []).length;
-    const discCount = (me.discard ?? []).length;
-
-    const spamEl = document.getElementById('spam-count');
-    if (spamEl) {
-      spamEl.textContent = spamCount > 0 ? `⚠ ${spamCount} SPAM` : '';
-      spamEl.dataset.tooltip = spamCount > 0
-        ? `Hai ${spamCount} carte SPAM nel ciclo. Quando vengono giocate, eseguono la prima carta dal tuo mazzo (e si auto-eliminano).`
-        : 'Nessuna SPAM nel ciclo';
-    }
-
-    const deckEl = document.getElementById('deck-info');
-    if (deckEl) {
-      deckEl.textContent = `🃏 ${deckCount}  ♻ ${discCount}`;
-      deckEl.dataset.tooltip = `Il tuo mazzo:\n🃏 ${deckCount} carte da pescare\n♻ ${discCount} carte negli scarti\nIn totale ${deckCount + discCount + (me.hand?.length ?? 0)} carte in circolazione.`;
-    }
-
-    const dmgEl = document.getElementById('dmg-deck-info');
-    if (dmgEl) {
-      // FIX: somma le WORM tenute nei wormSlots di TUTTI i giocatori
-      const inPlay = State.getPlayerList()
-        .flatMap(p => Object.values(p.wormSlots ?? {}))
-        .filter(Boolean).length;
-      const deckN  = State.damageDeck?.length    ?? 0;
-      const discN  = State.damageDiscard?.length ?? 0;
-      const total  = deckN + discN + inPlay;
-      dmgEl.textContent = `🦠 Guasti: ${deckN} (${discN}♻ ${inPlay}⏳)`;
-      dmgEl.dataset.tooltip = `Mazzo danno condiviso:\n🦠 ${deckN} da pescare\n♻ ${discN} scartate\n⏳ ${inPlay} in slot WORM dei giocatori\nTotale: ${total}`;
-    }
-  },
-
-  onCardClick(handIndex) {
-    const me = State.myPlayer();
-    if (!me || me.confirmed) return;
-    const cardId = me.hand[handIndex];
-    if (!cardId) return;
-    const inRegsCount = me.registers.filter(r => r === cardId).length;
-    const inHandCount = me.hand.filter(c => c === cardId).length;
-    if (inRegsCount >= inHandCount) return;
-    const slot = me.registers.indexOf(null);
-    if (slot === -1) return;
-    me.registers[slot] = cardId;
-    this.render();
-    this._updateConfirmBtn();
-  },
-
-  onRegisterClick(regIndex) {
-    const me = State.myPlayer();
-    if (!me || me.confirmed) return;
-    const card = me.registers[regIndex];
-    if (!card) return;
-    if (typeof card === 'string' && card.startsWith('worm_')) return;
-    me.registers[regIndex] = null;
-    this.render();
-    this._updateConfirmBtn();
-  },
-
-  confirm() {
-    const me = State.myPlayer();
-    if (!me || me.confirmed) return;
-    if (me.registers.some(r => r === null)) {
-      document.getElementById('prog-status').textContent =
-        'Riempi tutti i registri liberi prima di confermare.';
-      return;
-    }
-    me.confirmed = true;
-    Net.sendToAll({ type: 'PROGRAM_REGISTERS', registers: me.registers });
-    document.getElementById('prog-status').textContent = '✅ Confermato! In attesa degli altri…';
-    document.getElementById('btn-confirm').disabled = true;
-    this.render();
-    this.updateOthersStatus();
-  },
-
-  onGuestConfirmed(fromId, msg) {
-    this._confirmed[fromId] = msg.registers;
-    const me = State.myPlayer();
-    if (me?.confirmed) this._confirmed[State.myId] = me.registers;
-    const allIds = State.getPlayerList().map(p => p.id);
-    if (allIds.every(id => this._confirmed[id])) {
-      if (typeof Log !== 'undefined') Log.add('Tutti pronti — esecuzione', { type: 'event' });
+  onGuestConfirmed(fromId,msg){
+    this._confirmed[fromId]=msg.registers;
+    const me=State.myPlayer();if(me?.confirmed)this._confirmed[State.myId]=me.registers;
+    if(State.getPlayerList().map(p=>p.id).every(id=>this._confirmed[id])){
+      if(typeof Log!=='undefined')Log.add('Tutti pronti — esecuzione',{type:'event'});
       Execution.compute(this._confirmed);
     }
   },
 
-  updateOthersStatus() {
-    const el = document.getElementById('others-status');
-    if (!el) return;
-    el.innerHTML = '';
-    for (const p of State.getPlayerList()) {
-      const char  = CONFIG.characters.find(c => c.id === p.character);
-      const color = char?.color ?? '#6b7280';
-      const isMe  = p.id === State.myId;
-      const row   = document.createElement('div');
-      row.className = 'other-status-row' + (isMe ? ' is-me' : '');
-      row.innerHTML = `
-        <span class="other-dot" style="background:${color}"></span>
-        <span class="other-name">${(p.nickname || '?').substring(0, 10)}${isMe ? ' (tu)' : ''}</span>
-        <span class="other-conf">${p.confirmed ? '✅' : '⏳'}</span>
-      `;
-      el.appendChild(row);
+  updateOthersStatus(){
+    const el=document.getElementById('others-status');if(!el)return;el.innerHTML='';
+    for(const p of State.getPlayerList()){
+      const ch=CONFIG.characters.find(c=>c.id===p.character),col=ch?.color??'#6b7280',isMe=p.id===State.myId;
+      const r=document.createElement('div');r.className='other-status-row'+(isMe?' is-me':'');
+      r.innerHTML=`<span class="other-dot" style="background:${col}"></span><span class="other-name">${(p.nickname||'?').substring(0,10)}${isMe?' (tu)':''}</span><span class="other-conf">${p.confirmed?'✅':'⏳'}</span>`;
+      el.appendChild(r);
     }
   },
 
-  _autoConfirm() {
-    const me = State.myPlayer();
-    if (!me || me.confirmed) return;
-    const available = [...me.hand];
-    for (const r of me.registers) {
-      if (!r || r.startsWith?.('worm_')) continue;
-      const idx = available.indexOf(r);
-      if (idx !== -1) available.splice(idx, 1);
-    }
-    const pool = this._shuffle(available);
-    me.registers = me.registers.map(r => r !== null ? r : (pool.shift() ?? null));
-    this.render();
-    this.confirm();
+  _autoConfirm(){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    const av=[...me.hand];for(const r of me.registers){if(!r||r.startsWith?.('worm_'))continue;const i=av.indexOf(r);if(i!==-1)av.splice(i,1);}
+    const pool=this._shuffle(av);me.registers=me.registers.map(r=>r!==null?r:(pool.shift()??null));
+    this.render();this.confirm();
   },
 
-  render() {
-    const me = State.myPlayer();
-    if (!me) return;
-    this._renderRegisters(me);
-    this._renderHand(me);
-    this._updateConfirmBtn(me);
-  },
+  render(){const me=State.myPlayer();if(!me)return;this._renderRegisters(me);this._renderHand(me);this._updateConfirmBtn(me);},
 
-  _renderRegisters(me) {
-    for (let i = 0; i < CONFIG.registersCount; i++) {
-      const slot = document.getElementById('reg-' + i);
-      if (!slot) continue;
-      slot.innerHTML = '';
-      const cardId = me.registers[i];
-      if (!cardId) continue;
-      if (typeof cardId === 'string' && cardId.startsWith('worm_')) {
-        slot.appendChild(this._wormCardEl(cardId));
-      } else {
-        slot.appendChild(this._cardEl(cardId, true, i));
-      }
+  _renderRegisters(me){
+    for(let i=0;i<CONFIG.registersCount;i++){
+      const s=document.getElementById('reg-'+i);if(!s)continue;s.innerHTML='';
+      const c=me.registers[i];if(!c)continue;
+      if(typeof c==='string'&&c.startsWith('worm_'))s.appendChild(this._wormCardEl(c));
+      else s.appendChild(this._cardEl(c,true,i));
     }
   },
 
-  _wormCardEl(wormId) {
-    const wormDef = (typeof RULES !== 'undefined' ? RULES?.worms : null);
-    const def     = wormDef?.find(w => w.id === wormId);
-    const color   = def?.color  ?? '#ef4444';
-    const symbol  = def?.symbol ?? '🦠';
-    const name    = def?.name   ?? 'WORM';
+  _wormCardEl(wormId){
+    const wd=(typeof RULES!=='undefined'?RULES?.worms:null);
+    const def=wd?.find(w=>w.id===wormId);
+    const col=def?.color??'#ef4444',sym=def?.symbol??'🦠',nm=def?.name??'WORM';
+    const seq=(def?.sequence??[]).map(s=>{switch(s.type){case'move':return`Avanza ${s.steps??1}`;case'backUp':return`Indietro ${s.steps??1}`;case'rotateLeft':return'Ruota ←';case'rotateRight':return'Ruota →';case'uTurn':return'U-Turn';default:return s.type;}}).join(' → ');
+    const el=document.createElement('div');el.className='game-card worm-card';
+    el.dataset.tooltip=`WORM: ${nm}\nSequenza: ${seq||'(nessuna)'}`;el.dataset.tooltipColor=col;
+    el.style.cssText=`background:${col}22;border:2px solid ${col};border-radius:5px;cursor:not-allowed;width:100%;aspect-ratio:2/3;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;`;
+    const ic=document.createElement('div');ic.style.cssText='font-size:1.4rem;line-height:1;';ic.textContent=sym;
+    const ne=document.createElement('div');ne.className='card-name-area';ne.style.cssText=`color:${col};font-size:0.42rem;font-weight:800;`;ne.textContent=nm.toUpperCase();
+    el.appendChild(ic);el.appendChild(ne);return el;
+  },
 
-    // Costruisci descrizione della sequenza per il tooltip
-    const seqDesc = (def?.sequence ?? []).map(step => {
-      switch (step.type) {
-        case 'move':        return `Avanza ${step.steps ?? 1}`;
-        case 'backUp':      return `Indietro ${step.steps ?? 1}`;
-        case 'rotateLeft':  return 'Ruota ←';
-        case 'rotateRight': return 'Ruota →';
-        case 'uTurn':       return 'U-Turn';
-        default:            return step.type;
-      }
-    }).join(' → ');
+  _renderHand(me){
+    const row=document.getElementById('hand-row');if(!row)return;row.innerHTML='';
+    const rc={};for(const r of me.registers)if(r&&!r.startsWith?.('worm_'))rc[r]=(rc[r]||0)+1;
+    const sc={};for(let i=0;i<me.hand.length;i++){const id=me.hand[i];sc[id]=(sc[id]||0)+1;row.appendChild(this._cardEl(id,false,i,(rc[id]||0)>=sc[id]));}
+  },
 
-    const el = document.createElement('div');
-    el.className = 'game-card worm-card';
-    el.dataset.tooltip      = `WORM: ${name}\nSequenza: ${seqDesc || '(nessuna)'}`;
-    el.dataset.tooltipColor = color;
-    el.style.cssText = [
-      `background: ${color}22`,
-      `border: 2px solid ${color}`,
-      'border-radius: 5px',
-      'cursor: not-allowed',
-      'width: 100%',
-      'aspect-ratio: 2/3',
-      'position: relative',
-      'display: flex',
-      'flex-direction: column',
-      'align-items: center',
-      'justify-content: center',
-      'gap: 2px',
-      'overflow: hidden',
-    ].join(';');
-
-    const iconEl = document.createElement('div');
-    iconEl.style.cssText = 'font-size: 1.4rem; line-height: 1;';
-    iconEl.textContent = symbol;
-    const nameEl = document.createElement('div');
-    nameEl.className = 'card-name-area';
-    nameEl.style.cssText = `color: ${color}; font-size: 0.42rem; font-weight: 800;`;
-    nameEl.textContent = name.toUpperCase();
-    el.appendChild(iconEl);
-    el.appendChild(nameEl);
+  _cardEl(cardId,isReg,index,dimmed=false){
+    const def=CONFIG.cards.find(c=>c.id===cardId);
+    const el=document.createElement('div');el.className='game-card'+(dimmed&&!isReg?' used':'');
+    el.dataset.tooltip=def?`${def.name}: ${def.desc}`:cardId;
+    if(CONFIG.cardFrame)el.style.backgroundImage=`url('${CONFIG.cardFrame}')`;
+    else el.style.cssText='background:#2a2010;border:2px solid #6b5e3a;border-radius:6px;';
+    if(cardId==='spam')el.style.outline='2px solid #f85149';
+    if(def?.image){const ic=document.createElement('div');ic.className='card-icon-area';ic.style.backgroundImage=`url('${def.image}')`;el.appendChild(ic);}
+    const nd=document.createElement('div');nd.className='card-name-area';nd.textContent=(def?.name??cardId).toUpperCase();
+    if(cardId==='spam')nd.style.color='#f85149';el.appendChild(nd);
+    if(!dimmed||isReg)el.addEventListener('click',()=>{if(State.myPlayer()?.confirmed)return;isReg?this.onRegisterClick(index):this.onCardClick(index);});
     return el;
   },
 
-  _renderHand(me) {
-    const row = document.getElementById('hand-row');
-    if (!row) return;
-    row.innerHTML = '';
-    const regCount  = {};
-    for (const r of me.registers) {
-      if (r && !r.startsWith?.('worm_')) regCount[r] = (regCount[r] || 0) + 1;
-    }
-    const seenCount = {};
-    for (let i = 0; i < me.hand.length; i++) {
-      const id = me.hand[i];
-      seenCount[id] = (seenCount[id] || 0) + 1;
-      const dimmed = (regCount[id] || 0) >= seenCount[id];
-      row.appendChild(this._cardEl(id, false, i, dimmed));
+  _updateConfirmBtn(me){
+    me=me??State.myPlayer();const btn=document.getElementById('btn-confirm');if(!btn||!me)return;
+    const filled=me.registers.filter(Boolean).length;btn.disabled=filled<CONFIG.registersCount||me.confirmed;
+    const st=document.getElementById('prog-status');if(st&&!me.confirmed){
+      const wc=Object.values(me.wormSlots??{}).filter(Boolean).length,free=CONFIG.registersCount-wc,done=me.registers.filter(r=>r&&!r.startsWith?.('worm_')).length;
+      st.textContent=done<free?`Registri: ${done}/${free}${wc>0?' ('+wc+' WORM)':''}` :'Pronti! Conferma per continuare.';
     }
   },
 
-  _cardEl(cardId, isReg, index, dimmed = false) {
-    const def = CONFIG.cards.find(c => c.id === cardId);
-    const el  = document.createElement('div');
-    el.className = 'game-card' + (dimmed && !isReg ? ' used' : '');
-    el.dataset.tooltip = def ? `${def.name}: ${def.desc}` : cardId;
-
-    if (CONFIG.cardFrame) {
-      el.style.backgroundImage = `url('${CONFIG.cardFrame}')`;
-    } else {
-      el.style.cssText = 'background:#2a2010;border:2px solid #6b5e3a;border-radius:6px;';
-    }
-    if (cardId === 'spam') el.style.outline = '2px solid #f85149';
-
-    if (def?.image) {
-      const icon = document.createElement('div');
-      icon.className = 'card-icon-area';
-      icon.style.backgroundImage = `url('${def.image}')`;
-      el.appendChild(icon);
-    }
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'card-name-area';
-    nameDiv.textContent = (def?.name ?? cardId).toUpperCase();
-    if (cardId === 'spam') nameDiv.style.color = '#f85149';
-    el.appendChild(nameDiv);
-
-    if (!dimmed || isReg) {
-      el.addEventListener('click', () => {
-        if (State.myPlayer()?.confirmed) return;
-        isReg ? this.onRegisterClick(index) : this.onCardClick(index);
-      });
-    }
-    return el;
-  },
-
-  _updateConfirmBtn(me) {
-    me = me ?? State.myPlayer();
-    const btn = document.getElementById('btn-confirm');
-    if (!btn || !me) return;
-    const filled = me.registers.filter(Boolean).length;
-    btn.disabled = filled < CONFIG.registersCount || me.confirmed;
-    const status = document.getElementById('prog-status');
-    if (status && !me.confirmed) {
-      const wormCount = Object.values(me.wormSlots ?? {}).filter(Boolean).length;
-      const free = CONFIG.registersCount - wormCount;
-      const done = me.registers.filter(r => r && !r.startsWith?.('worm_')).length;
-      status.textContent = done < free
-        ? `Registri: ${done}/${free} (${wormCount} WORM)`
-        : 'Pronti! Conferma per continuare.';
-    }
-  },
-
-  handleGameMessage(fromId, msg) {
-    switch (msg.type) {
-      case 'ROUND_START':
-        this.startRound(msg);
-        break;
-      case 'PROGRAM_REGISTERS':
-        if (State.isHost) this.onGuestConfirmed(fromId, msg);
-        if (State.players[fromId]) State.players[fromId].confirmed = true;
-        this.updateOthersStatus();
-        break;
-      case 'EXECUTE_PLAN':
-        if (!State.isHost) Execution.receive(msg);
-        break;
+  handleGameMessage(fromId,msg){
+    switch(msg.type){
+      case'ROUND_START':this.startRound(msg);break;
+      case'PROGRAM_REGISTERS':if(State.isHost)this.onGuestConfirmed(fromId,msg);if(State.players[fromId])State.players[fromId].confirmed=true;this.updateOthersStatus();break;
+      case'EXECUTE_PLAN':if(!State.isHost)Execution.receive(msg);break;
     }
   },
 };

@@ -1,31 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  NET.JS — v6.4
-//  Layer di rete: PeerJS + WebRTC + architettura host-relay.
+//  NET.JS — v6.7
 //
-//  ARCHITETTURA HOST-RELAY:
-//  Ogni guest si connette solo all'host.
-//  L'host riceve i messaggi e li "relay-a" a tutti gli altri guest.
-//  Questo risolve il bug "giocatore 3 sovrascrive giocatore 2":
-//  ogni giocatore ha un ID univoco (il suo peerId) e i messaggi
-//  viaggiano con il campo `from` che identifica il mittente originale.
-//
-//  FORMATO MESSAGGI:
-//  {
-//    type:  string       — tipo messaggio (es. 'PLAYER_UPDATE')
-//    relay: boolean      — se true, l'host lo ritrasmette a tutti gli altri
-//    from:  string       — aggiunto dall'host durante il relay (peerId mittente)
-//    ...payload specifico del tipo
-//  }
+//  NOVITÀ v6.7:
+//  ─ Connessione a partita avviata → SPETTATORE.
+//    L'host NON aggiunge il nuovo arrivato a State.players.
+//    Lo aggiunge a State.spectators e gli invia SPECTATOR_INIT con lo
+//    stato corrente del gioco. Lo spettatore riceve i broadcast
+//    (EXECUTE_PLAN, ROUND_START, SYNC_STATE) e può guardare la partita
+//    in sola lettura. I suoi messaggi vengono ignorati (tranne REQUEST_SYNC).
+//  ─ Conteggio spettatori broadcast via SPECTATOR_COUNT a tutti i client.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Net = {
 
-  // Contatore atomico per joinOrder (host = 0, guest1 = 1, guest2 = 2, ...).
-  // Sostituisce Object.keys(State.conns).length che in caso di connessioni
-  // quasi-simultanee poteva assegnare lo stesso valore a due guest diversi.
-  _nextJoinOrder: 1,
+  _nextJoinOrder: 1,   // contatore atomico (host=0, guest1=1, …)
 
-  // ── Genera codice stanza 6 caratteri (no caratteri ambigui 0/O, 1/I) ─────
   _genCode() {
     const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';
@@ -40,30 +29,20 @@ const Net = {
     const code   = this._genCode();
     const peerId = CONFIG.peerPrefix + code.toLowerCase();
 
-    // Reset contatore joinOrder per questa nuova partita
-    this._nextJoinOrder = 1;
-
     State.isHost   = true;
     State.roomCode = code;
     State.peer     = new Peer(peerId, { debug: CONFIG.peerDebug });
+    this._nextJoinOrder = 1;
 
     State.peer.on('open', () => {
       State.myId = peerId;
-
-      // Registra il mio entry come host
       State.players[State.myId] = {
-        id:        State.myId,
-        nickname:  '',
-        character: null,
-        ready:     false,
-        isHost:    true,
-        joinOrder: 0,
+        id: State.myId, nickname: '', character: null,
+        ready: false, isHost: true, joinOrder: 0,
       };
-
       onReady();
     });
 
-    // Nuova connessione in entrata da un guest
     State.peer.on('connection', (conn) => {
       const guestId = conn.peer;
       State.conns[guestId] = conn;
@@ -83,25 +62,16 @@ const Net = {
 
     State.peer.on('open', (id) => {
       State.myId = id;
-
-      // Registra il mio entry come guest (joinOrder verrà assegnato dall'host)
       State.players[State.myId] = {
-        id:        State.myId,
-        nickname:  '',
-        character: null,
-        ready:     false,
-        isHost:    false,
-        joinOrder: 99,
+        id: State.myId, nickname: '', character: null,
+        ready: false, isHost: false, joinOrder: 99,
       };
-
       const hostPeerId = CONFIG.peerPrefix + code.toLowerCase();
       State.conn = State.peer.connect(hostPeerId, { reliable: true });
-
       State.conn.on('open', () => {
         this._setupHostConn(State.conn);
         onReady();
       });
-
       State.conn.on('error', (e) => onError('connessione: ' + e));
     });
 
@@ -115,52 +85,87 @@ const Net = {
     const guestId = conn.peer;
 
     conn.on('open', () => {
-      // 1. Crea l'entry per il nuovo guest
-      // FIX v6.4: usa _nextJoinOrder invece di Object.keys(State.conns).length.
-      // Il vecchio approccio poteva assegnare lo stesso joinOrder a due guest
-      // che si connettevano quasi-simultaneamente, perché entrambe le connessioni
-      // erano già in State.conns prima che i loro eventi 'open' scattassero.
+
+      // ── Partita già avviata → spettatore ────────────────────────────────
+      if (State.phase === 'game') {
+        State.spectators[guestId] = true;
+
+        // Invia lo stato del gioco corrente (mappa, giocatori, posizioni)
+        const positions = {};
+        for (const [id, p] of Object.entries(State.players)) {
+          if (p.cx === undefined) continue;
+          positions[id] = {
+            cx: p.cx, cy: p.cy, dir: p.dir,
+            energy: p.energy, checkpoints: p.checkpoints ?? [],
+            lastCheckpoint: p.lastCheckpoint ?? 0,
+            nickname: p.nickname, character: p.character,
+            wormSlots: p.wormSlots ?? {},
+          };
+        }
+        this.sendTo(guestId, {
+          type:      'SPECTATOR_INIT',
+          mapData:   Board.data,
+          players:   State.players,
+          positions,
+          round:     State.round,
+          execMode:  State.execMode,
+          execSpeed: State.execSpeed,
+          damageDeck: State.damageDeck,
+        });
+
+        // Broadcast conteggio spettatori aggiornato
+        this._broadcastSpectatorCount();
+
+        if (typeof Log !== 'undefined')
+          Log.add(`Nuovo spettatore connesso (${Object.keys(State.spectators).length})`, { type: 'info' });
+
+        return;   // NON aggiunge a State.players → nessun blocco conferma
+      }
+
+      // ── Lobby: slot pieni? ──────────────────────────────────────────────
+      if (Object.keys(State.players).length >= CONFIG.maxPlayers) {
+        this.sendTo(guestId, { type: 'REJECTED', reason: 'Partita piena (max ' + CONFIG.maxPlayers + ')' });
+        setTimeout(() => { conn.close(); delete State.conns[guestId]; }, 200);
+        return;
+      }
+
+      // ── Lobby: accettato come giocatore ─────────────────────────────────
       const joinOrder = this._nextJoinOrder++;
       const newPlayer = {
-        id:        guestId,
-        nickname:  '',
-        character: null,
-        ready:     false,
-        isHost:    false,
-        joinOrder: joinOrder,
+        id: guestId, nickname: '', character: null,
+        ready: false, isHost: false, joinOrder,
       };
       State.players[guestId] = newPlayer;
 
-      // 2. Invia al nuovo guest lo stato completo della lobby
       this.sendTo(guestId, {
-        type:             'LOBBY_STATE',
-        players:          State.players,
+        type: 'LOBBY_STATE',
+        players: State.players,
         assignedJoinOrder: joinOrder,
       });
 
-      // 3. Notifica tutti gli altri guest del nuovo arrivo
-      this._relayExcept(guestId, {
-        type:   'PLAYER_JOINED',
-        player: newPlayer,
-      });
-
-      // 4. Aggiorna la UI dell'host
+      this._relayExcept(guestId, { type: 'PLAYER_JOINED', player: newPlayer });
       this._dispatch('system', { type: 'PLAYER_JOINED', player: newPlayer });
     });
 
     conn.on('data', (msg) => {
-      // Processa il messaggio sull'host
-      this._dispatch(guestId, msg);
-
-      // Se richiede relay, ritrasmetti a tutti gli altri guest
-      if (msg.relay) {
-        this._relayExcept(guestId, { ...msg, from: guestId });
+      // Spettatori: accetta solo REQUEST_SYNC, ignora tutto il resto
+      if (State.spectators[guestId]) {
+        if (msg.type === 'REQUEST_SYNC') this._dispatch(guestId, msg);
+        return;
       }
+      this._dispatch(guestId, msg);
+      if (msg.relay) this._relayExcept(guestId, { ...msg, from: guestId });
     });
 
     conn.on('close', () => {
       delete State.conns[guestId];
-      // Notifica tutti
+      if (State.spectators[guestId]) {
+        delete State.spectators[guestId];
+        this._broadcastSpectatorCount();
+        if (typeof Log !== 'undefined')
+          Log.add(`Spettatore disconnesso (${Object.keys(State.spectators).length})`, { type: 'info' });
+        return;
+      }
       this._relayExcept(guestId, { type: 'PLAYER_LEFT', id: guestId });
       this._dispatch('system',   { type: 'PLAYER_LEFT', id: guestId });
     });
@@ -168,79 +173,73 @@ const Net = {
     conn.on('error', (e) => console.warn('[Net] guest conn error', guestId, e));
   },
 
+  _broadcastSpectatorCount() {
+    const count = Object.keys(State.spectators).length;
+    State.spectatorCount = count;
+    this.broadcast({ type: 'SPECTATOR_COUNT', count });
+  },
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  SETUP CONNESSIONE CON L'HOST — lato GUEST
   // ═══════════════════════════════════════════════════════════════════════════
   _setupHostConn(conn) {
     conn.on('data', (msg) => {
-      // I messaggi dall'host possono avere msg.from se sono relay di altri guest
       this._dispatch(msg.from ?? 'host', msg);
     });
-
     conn.on('close', () => {
       this._dispatch('system', { type: 'HOST_DISCONNECTED' });
     });
-
     conn.on('error', (e) => console.warn('[Net] host conn error', e));
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  INVIO MESSAGGI
   // ═══════════════════════════════════════════════════════════════════════════
-
-  // Invia a un peer specifico (solo host)
   sendTo(peerId, msg) {
     const c = State.conns[peerId];
     if (c && c.open) c.send(msg);
   },
 
-  // Broadcast a tutti i guest connessi (solo host)
   broadcast(msg) {
     for (const c of Object.values(State.conns)) {
       if (c.open) c.send(msg);
     }
   },
 
-  // Relay a tutti i guest TRANNE uno (solo host, interno)
   _relayExcept(exceptId, msg) {
     for (const [id, c] of Object.entries(State.conns)) {
       if (id !== exceptId && c.open) c.send(msg);
     }
   },
 
-  // Invia all'host (solo guest)
   send(msg) {
     if (State.conn && State.conn.open) State.conn.send(msg);
   },
 
-  // Manda a tutti (host + guest).
-  // Host: processa localmente + broadcast.
-  // Guest: manda all'host con relay:true, lui ridistribuisce.
   sendToAll(msg) {
     if (State.isHost) {
-      this._dispatch(State.myId, msg);                    // processa localmente
-      this.broadcast({ ...msg, from: State.myId });        // manda ai guest
+      this._dispatch(State.myId, msg);
+      this.broadcast({ ...msg, from: State.myId });
     } else {
-      this.send({ ...msg, relay: true });                  // chiede relay all'host
+      this.send({ ...msg, relay: true });
     }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  DISPATCHER → Lobby o Game in base alla fase corrente
-  // ═══════════════════════════════════════════════════════════════════════════
   _dispatch(fromId, msg) {
+    // Messaggi che vanno gestiti in qualunque fase
+    if (msg.type === 'SPECTATOR_INIT' || msg.type === 'REJECTED') {
+      if (typeof Lobby !== 'undefined') Lobby.handleMessage(fromId, msg);
+      return;
+    }
+    if (msg.type === 'SPECTATOR_COUNT') {
+      State.spectatorCount = msg.count;
+      return;
+    }
     if (State.phase === 'lobby') {
       if (typeof Lobby !== 'undefined') Lobby.handleMessage(fromId, msg);
     } else if (State.phase === 'game') {
       if (typeof Game !== 'undefined') Game.handleMessage(fromId, msg);
-    } else {
-      // FIX v6.4: warning per messaggi ignorati in fase 'menu'.
-      // Prima erano silenziosamente ingoiati (difficile da debuggare).
-      // HOST_DISCONNECTED e PLAYER_LEFT sono eventi normali durante la disconnessione,
-      // non li logghiamo per non inquinare la console durante goToMenu().
-      if (msg.type !== 'HOST_DISCONNECTED' && msg.type !== 'PLAYER_LEFT') {
-        console.warn(`[Net] Messaggio ignorato (fase='${State.phase}'):`, msg.type, 'da', fromId);
-      }
     }
   },
 };
