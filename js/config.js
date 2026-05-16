@@ -7,7 +7,7 @@ const CONFIG = {
   peerPrefix: 'bc-v1-', peerDebug: 0,
   minPlayers: 2, maxPlayers: 6,
   cardsDealt: 9, registersCount: 5, programmingTimerSec: 0,
-  startingEnergy: 3, maxEnergy: 10, rechargeAmount: 1,
+  startingEnergy: 0, maxEnergy: 10, rechargeAmount: 1,
   spamCardsOnFall: 2, spamOnDamage: 1, boardLaserStrength: 1, robotLaserStrength: 1,
   deckComposition: { move1:4, move2:3, move3:1, backUp:1, rotateRight:4, rotateLeft:4, uTurn:1, again:1, recharge:1 },
   characters: [
@@ -18,11 +18,11 @@ const CONFIG = {
     { id:'hulk',   name:'Hulk X90',   color:'#8b5cf6', emoji:'💪', sprite:'assets/robots/PurpleBot.png' },
     { id:'trundle',name:'Trundle Bot',color:'#ec4899', emoji:'🎯', sprite:'assets/robots/BrownBot.png' },
   ],
-  defaultMap: 'exchange', cellSize: 40,
+  defaultMap: 'factory_floor', cellSize: 40,
   availableMaps: [
-    { id: 'exchange', name: 'Exchange', file: 'assets/maps/exchange.json' },
+    { id: 'exchange',      name: 'Exchange',      file: 'assets/maps/exchange.json' },
+    { id: 'factory_floor', name: 'Factory Floor',  file: 'assets/maps/factory_floor.json' },
     // Aggiungi nuove mappe qui dopo averle create col Map Builder:
-    // { id: 'crossroads', name: 'Crossroads', file: 'assets/maps/crossroads.json' },
   ],
   tileImages: {
     floor_a:'assets/tiles/pavement_A.png', floor_b:'assets/tiles/pavement_B.png',
