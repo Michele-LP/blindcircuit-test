@@ -3,11 +3,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
-  version: '6.7', gameName: 'BlindCircuit',
+  version: '6.8', gameName: 'BlindCircuit',
   peerPrefix: 'bc-v1-', peerDebug: 0,
   minPlayers: 2, maxPlayers: 6,
   cardsDealt: 9, registersCount: 5, programmingTimerSec: 0,
-  startingEnergy: 0, maxEnergy: 10, rechargeAmount: 1,
+  startingEnergy: 3, maxEnergy: 10, rechargeAmount: 1,
   spamCardsOnFall: 2, spamOnDamage: 1, boardLaserStrength: 1, robotLaserStrength: 1,
   deckComposition: { move1:4, move2:3, move3:1, backUp:1, rotateRight:4, rotateLeft:4, uTurn:1, again:1, recharge:1 },
   characters: [
@@ -27,6 +27,8 @@ const CONFIG = {
   tileImages: {
     floor_a:'assets/tiles/pavement_A.png', floor_b:'assets/tiles/pavement_B.png',
     pit:'assets/tiles/hole.png', conveyor:'assets/tiles/beltForward1.png', express:'assets/tiles/beltForward2.png',
+    conveyor_turn_left:'assets/tiles/beltTurnLeft1.png', conveyor_turn_right:'assets/tiles/beltTurnRight1.png',
+    express_turn_left:'assets/tiles/beltTurnLeft2.png', express_turn_right:'assets/tiles/beltTurnRight2.png',
     gear_cw:'assets/tiles/rotationClockwise.png', gear_ccw:'assets/tiles/rotationCounterClockwise.png',
     recharge:'assets/tiles/recharge.png', push_panel:'assets/tiles/spring_on.png', laser_src:'assets/tiles/Laser_A.png',
     checkpoints:['assets/tiles/Finish1.png','assets/tiles/Finish2.png','assets/tiles/Finish3.png'],

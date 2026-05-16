@@ -177,9 +177,19 @@ const VECS      = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
 
 const CELL_COLORS = {
   floor:'transparent', pit:'#080c10', conveyor:'#1e293b', express_conveyor:'#2a1d00',
-  conveyor_turn:'#1e293b', gear_cw:'#1a1f2e', gear_ccw:'#1a1f2e', recharge:'#0b1a10',
+  conveyor_turn:'#1e293b', express_conveyor_turn:'#2a1d00',
+  gear_cw:'#1a1f2e', gear_ccw:'#1a1f2e', recharge:'#0b1a10',
   push_panel:'#0d1a2a', laser:'#1a0a0a',
 };
+
+// NEW v6.8: helper per determinare tipo immagine e rotazione delle curve
+const OPP_DIR = { N:'S', S:'N', E:'W', W:'E' };
+const ROT_R   = { N:'E', E:'S', S:'W', W:'N' };
+function convTurnInfo(from, to) {
+  const isRight = ROT_R[from] === to;
+  const rotRad = DIR_ROT[from] ?? 0;
+  return { isRight, rotRad };
+}
 
 // Percorsi tile — identici a CONFIG.tileImages nel gioco
 const TILE_PATHS = {
@@ -188,6 +198,10 @@ const TILE_PATHS = {
   pit:       'assets/tiles/hole.png',
   conveyor:  'assets/tiles/beltForward1.png',
   express:   'assets/tiles/beltForward2.png',
+  conv_turn_left:  'assets/tiles/beltTurnLeft1.png',
+  conv_turn_right: 'assets/tiles/beltTurnRight1.png',
+  exp_turn_left:   'assets/tiles/beltTurnLeft2.png',
+  exp_turn_right:  'assets/tiles/beltTurnRight2.png',
   gear_cw:   'assets/tiles/rotationClockwise.png',
   gear_ccw:  'assets/tiles/rotationCounterClockwise.png',
   recharge:  'assets/tiles/recharge.png',
@@ -419,7 +433,8 @@ const E = {
     const cellWalls = DIRS.filter(d => this.walls.has(`${cx},${cy},${d}`));
 
     let html = `<div class="prop-title">Cella (${cx}, ${cy})</div>`;
-    html += `<div class="prop-row"><span class="prop-label">Tipo</span><span class="prop-value">${cell?.type ?? (laser ? 'laser' : cp ? 'checkpoint' : st ? 'start' : 'floor')}</span></div>`;
+    const displayType = cell?.type === 'conveyor_turn' ? (cell.express ? 'nastro curvo 2x' : 'nastro curvo') : (cell?.type ?? (laser ? 'laser' : cp ? 'checkpoint' : st ? 'start' : 'floor'));
+    html += `<div class="prop-row"><span class="prop-label">Tipo</span><span class="prop-value">${displayType}</span></div>`;
 
     // Direzione (per celle direzionali)
     if (cell && ['conveyor','express_conveyor','push_panel'].includes(cell.type)) {
@@ -596,7 +611,21 @@ const E = {
   _drawCell(cx, cy, cell) {
     const S = this.cellSize, px = cx*S, py = cy*S;
 
-    // ── Prova a disegnare il tile PNG ──────────────────────────────────
+    // ── NEW v6.8: Prova tile PNG per curve nastro ──────────────────────
+    if (cell.type === 'conveyor_turn') {
+      const ti = convTurnInfo(cell.from ?? 'E', cell.to ?? 'S');
+      const imgKey = cell.express
+        ? (ti.isRight ? 'exp_turn_right' : 'exp_turn_left')
+        : (ti.isRight ? 'conv_turn_right' : 'conv_turn_left');
+      const img = TILE_IMGS[imgKey];
+      if (img?.complete && img.naturalWidth > 0) {
+        ctx.save(); ctx.translate(px+S/2, py+S/2); ctx.rotate(ti.rotRad);
+        ctx.drawImage(img, -S/2, -S/2, S, S); ctx.restore();
+        return;
+      }
+    }
+
+    // ── Prova a disegnare il tile PNG per celle standard ────────────────
     const tileKey = {
       pit:'pit', conveyor:'conveyor', express_conveyor:'express',
       gear_cw:'gear_cw', gear_ccw:'gear_ccw', recharge:'recharge',
@@ -744,11 +773,14 @@ const E = {
       checkpoints: this.checkpoints.map(c => ({ x:c.x, y:c.y, order:c.order })),
       cells: Object.entries(this.cells).map(([k, c]) => {
         const [x,y] = k.split(',').map(Number);
-        const obj = { x, y, type: c.type };
+        // NEW v6.8: conveyor_turn con express=true → tipo express_conveyor_turn
+        let outType = c.type;
+        if (c.type === 'conveyor_turn' && c.express) outType = 'express_conveyor_turn';
+        const obj = { x, y, type: outType };
         if (c.dir) obj.dir = c.dir;
         if (c.from) obj.from = c.from;
         if (c.to) obj.to = c.to;
-        if (c.express) obj.express = c.express;
+        // NB: express NON va in output — il tipo stesso lo indica
         if (c.activeRegisters) obj.activeRegisters = [...c.activeRegisters];
         return obj;
       }),
@@ -793,11 +825,15 @@ const E = {
     this.cells = {};
     for (const c of json.cells || []) {
       const key = `${c.x},${c.y}`;
-      const cell = { type: c.type };
+      // NEW v6.8: express_conveyor_turn → conveyor_turn con express=true
+      let cellType = c.type;
+      let isExpress = !!c.express;
+      if (c.type === 'express_conveyor_turn') { cellType = 'conveyor_turn'; isExpress = true; }
+      const cell = { type: cellType };
       if (c.dir) cell.dir = c.dir;
       if (c.from) cell.from = c.from;
       if (c.to) cell.to = c.to;
-      if (c.express) cell.express = c.express;
+      if (cellType === 'conveyor_turn') cell.express = isExpress;
       if (c.activeRegisters) cell.activeRegisters = [...c.activeRegisters];
       this.cells[key] = cell;
     }

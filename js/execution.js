@@ -1,19 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  EXECUTION.JS — v6.7
+//  EXECUTION.JS — v6.8
 //
-//  NOVITÀ v6.7:
-//  ─ LOG COMPLETO: ogni azione genera una voce nel log:
-//    · card_played → "Alice: Avanza 2"  (emesso prima di ogni esecuzione carta)
-//    · phase_marker → "— Nastri express —" (separa le fasi del registro)
-//    · move, rotate, fall, damage, checkpoint, energy → loggati singolarmente
-//  ─ CADUTA NEI BUCHI: la caduta è ora in due step visivi:
-//    1) Il robot si muove sulla cella buco (smooth lerp)
-//    2) Dopo una pausa, teletrasporto allo spawn (snap, no lerp)
-//    Il flag player._snapAnim = true segnala a game.js di non interpolare.
-//  ─ REBOOT SU CADUTA: il robot che cade perde TUTTI i registri rimanenti
-//    del round corrente. Solo le carte vengono saltate; gli elementi del
-//    tabellone (nastri, ingranaggi, laser) agiscono ancora sul robot.
-//  ─ I log Toast/Log usano _playerInfo() per nome+colore del giocatore.
+//  NOVITÀ v6.8:
+//  ─ Nastri curvi: conveyor_turn e express_conveyor_turn con rotazione 90°
+//  ─ applyConveyors esteso per gestire _isBeltOfType()
+//  ─ Rotazione robot dopo movimento su curva
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Execution = (() => {
@@ -175,35 +166,78 @@ const Execution = (() => {
   }
 
   // ── Nastri, push panel, ingranaggi ────────────────────────────────────────
+
+  // NEW v6.8: applyConveyors gestisce anche conveyor_turn / express_conveyor_turn.
+  // Le curve spostano il robot nella direzione 'to' e lo ruotano di 90°.
+  function _isBeltOfType(cellType, beltType) {
+    if (cellType === beltType) return true;
+    if (beltType === 'conveyor'         && cellType === 'conveyor_turn')         return true;
+    if (beltType === 'express_conveyor' && cellType === 'express_conveyor_turn') return true;
+    return false;
+  }
+
   function applyConveyors(sim, beltType) {
-    const actions=[], onBelt=Object.values(sim).filter(s => Board._cellAt(s.cx,s.cy)?.type===beltType);
+    const actions=[];
+    const onBelt = Object.values(sim).filter(s => {
+      const ct = Board._cellAt(s.cx, s.cy)?.type;
+      return ct && _isBeltOfType(ct, beltType);
+    });
     if (!onBelt.length) return actions;
-    const intended=new Map();
+
+    const intended = new Map();   // id → { nx, ny } | null
+    const turnInfo = new Map();   // id → { from, to } per le curve (per la rotazione)
+
     for (const s of onBelt) {
-      const cell=Board._cellAt(s.cx,s.cy), dir=cell.dir;
-      if (wallBlocks(s.cx,s.cy,dir)){intended.set(s.id,null);continue;}
-      const v=VECS[dir],nx=s.cx+v[0],ny=s.cy+v[1];
-      if (!Board.inBounds(nx,ny)){intended.set(s.id,null);continue;}
-      intended.set(s.id,{nx,ny});
+      const cell = Board._cellAt(s.cx, s.cy);
+      const isTurn = cell.type.includes('_turn');
+      // Direzione di uscita: per le curve è 'to', per i nastri dritti è 'dir'
+      const dir = isTurn ? cell.to : cell.dir;
+      if (!dir || wallBlocks(s.cx, s.cy, dir)) { intended.set(s.id, null); continue; }
+      const v = VECS[dir], nx = s.cx + v[0], ny = s.cy + v[1];
+      if (!Board.inBounds(nx, ny)) { intended.set(s.id, null); continue; }
+      intended.set(s.id, { nx, ny });
+      if (isTurn) turnInfo.set(s.id, { from: cell.from, to: cell.to });
     }
-    const dc=new Map();
-    for (const [,m] of intended) if (m) { const k=`${m.nx},${m.ny}`; dc.set(k,(dc.get(k)||0)+1); }
-    for (const [id,m] of intended) if (m && (dc.get(`${m.nx},${m.ny}`)||0)>1) intended.set(id,null);
-    for (const [id,m] of intended) {
+
+    // Risoluzione conflitti: due robot stessa destinazione → nessuno si muove
+    const dc = new Map();
+    for (const [, m] of intended) if (m) { const k = `${m.nx},${m.ny}`; dc.set(k, (dc.get(k) || 0) + 1); }
+    for (const [id, m] of intended) if (m && (dc.get(`${m.nx},${m.ny}`) || 0) > 1) intended.set(id, null);
+    // Blocco: robot fermo nella destinazione (non su nastro o non si muove)
+    for (const [id, m] of intended) {
       if (!m) continue;
-      if (Object.values(sim).some(o => o.id!==id && o.cx===m.nx && o.cy===m.ny && (intended.get(o.id)===undefined||intended.get(o.id)===null)))
-        intended.set(id,null);
+      if (Object.values(sim).some(o => o.id !== id && o.cx === m.nx && o.cy === m.ny &&
+          (intended.get(o.id) === undefined || intended.get(o.id) === null)))
+        intended.set(id, null);
     }
-    for (const [id,m] of intended) {
-      if (!m) continue; const s=sim[id];
-      if (Board.cellType(m.nx,m.ny)==='pit'){
-        s.cx=m.nx;s.cy=m.ny; actions.push({type:'move',id,cx:m.nx,cy:m.ny});
-        const rp=respawnPos(s);s.cx=rp.cx;s.cy=rp.cy;
-        for(let j=0;j<CONFIG.spamCardsOnFall;j++) s.discard.unshift('spam');
-        actions.push({type:'fall',id,cx:m.nx,cy:m.ny,respawnCx:rp.cx,respawnCy:rp.cy});
-        s.rebooting=true;
-      } else { s.cx=m.nx;s.cy=m.ny; actions.push({type:'move',id,cx:m.nx,cy:m.ny}); }
+
+    // Applica movimenti
+    for (const [id, m] of intended) {
+      if (!m) continue;
+      const s = sim[id];
+      if (Board.cellType(m.nx, m.ny) === 'pit') {
+        s.cx = m.nx; s.cy = m.ny; actions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
+        const rp = respawnPos(s); s.cx = rp.cx; s.cy = rp.cy;
+        for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
+        actions.push({ type: 'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy });
+        s.rebooting = true;
+      } else {
+        s.cx = m.nx; s.cy = m.ny;
+        actions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
+      }
     }
+
+    // NEW v6.8: rotazione per i robot che erano su curve e si sono effettivamente mossi
+    // from = direzione di viaggio in entrata, to = direzione dopo la curva
+    for (const [id, ti] of turnInfo) {
+      if (!intended.get(id)) continue; // non si è mosso → niente rotazione
+      const s = sim[id];
+      if (s.rebooting) continue;       // caduto → niente rotazione
+      const isRight = ROT_R[ti.from] === ti.to;
+      s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
+      actions.push({ type: 'rotate', id, dir: s.dir });
+    }
+
     return actions;
   }
   function applyPushPanels(sim,regIndex){

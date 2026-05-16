@@ -321,14 +321,14 @@
     {
       "x": 1,
       "y": 3,
-      "type": "conveyor_turn",
+      "type": "express_conveyor_turn",
       "from": "W",
       "to": "S"
     },
     {
       "x": 11,
       "y": 3,
-      "type": "conveyor_turn",
+      "type": "express_conveyor_turn",
       "from": "E",
       "to": "S"
     },

@@ -1,12 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  BOARD.JS — v6.4 — Tabellone: dati mappa + rendering canvas.
+//  BOARD.JS — v6.8 — Tabellone: dati mappa + rendering canvas.
 //
-//  MODIFICHE v6:
-//  - preloadImages(): carica i PNG delle tile da CONFIG.tileImages
-//  - _drawCell / _drawCheckpoint / _drawLaserSource usano PNG se disponibili,
-//    altrimenti fanno fallback al disegno canvas originale
-//  - Pavimento a scacchi con pavement_A / pavement_B
-//  - Nastri / laser ruotati in base alla direzione
+//  MODIFICHE v6.8:
+//  - Supporto rendering conveyor_turn e express_conveyor_turn
+//  - 4 nuove tile PNG: beltTurnLeft1/2, beltTurnRight1/2
+//  - Helper _conveyorTurnInfo(from, to) per determinare direzione e rotazione
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Board = {
@@ -21,6 +19,20 @@ const Board = {
   // ── Angolo di rotazione per ogni direzione cardinale
   // Tutte le tile sono orientate verso E (destra) di default.
   _DIR_ROT: { E: 0, N: -Math.PI/2, S: Math.PI/2, W: Math.PI },
+  _OPP: { N:'S', S:'N', E:'W', W:'E' },
+  _ROT_R: { N:'E', E:'S', S:'W', W:'N' },
+
+  // NEW v6.8: dato from/to di una curva nastro, ritorna { isRight, rotRad }
+  // CONVENZIONE MAPPA:
+  //   from = direzione di viaggio del robot IN ENTRATA (es. "E" = il robot si muoveva verso Est)
+  //   to   = direzione di viaggio DOPO la curva (es. "S" = ora va verso Sud)
+  // isRight: true se la curva è a destra (CW), false se a sinistra
+  // rotRad: angolo di rotazione per il PNG (default: entrata da Est = 0°)
+  _conveyorTurnInfo(from, to) {
+    const isRight = this._ROT_R[from] === to;
+    const rotRad = this._DIR_ROT[from] ?? 0;
+    return { isRight, rotRad };
+  },
 
   // ── Carica dati mappa ─────────────────────────────────────────────────────
   load(mapData) {
@@ -50,6 +62,8 @@ const Board = {
 
     // Tile semplici
     const simpleKeys = ['floor_a','floor_b','pit','conveyor','express',
+                        'conveyor_turn_left','conveyor_turn_right',
+                        'express_turn_left','express_turn_right',
                         'gear_cw','gear_ccw','recharge','push_panel','laser_src'];
 
     if (CONFIG.boardBackground) {
@@ -188,6 +202,22 @@ const Board = {
         if (!this._drawTilePNG(ctx, 'push_panel', px, py, S, rot))
           this._drawPushPanel(ctx, px, py, S, cell.dir);
         break;
+
+      // NEW v6.8: nastri trasportatori curvi
+      case 'conveyor_turn': {
+        const ti = this._conveyorTurnInfo(cell.from, cell.to);
+        const key = ti.isRight ? 'conveyor_turn_right' : 'conveyor_turn_left';
+        if (!this._drawTilePNG(ctx, key, px, py, S, ti.rotRad))
+          this._drawConveyorTurn(ctx, px, py, S, cell.from, cell.to, false);
+        break;
+      }
+      case 'express_conveyor_turn': {
+        const ti = this._conveyorTurnInfo(cell.from, cell.to);
+        const key = ti.isRight ? 'express_turn_right' : 'express_turn_left';
+        if (!this._drawTilePNG(ctx, key, px, py, S, ti.rotRad))
+          this._drawConveyorTurn(ctx, px, py, S, cell.from, cell.to, true);
+        break;
+      }
     }
   },
 
@@ -352,6 +382,40 @@ const Board = {
     ctx.fillStyle = '#3b82f6';
     this._arrow(ctx, px + S/2, py + S/2, S * 0.22, dir);
     ctx.fill();
+  },
+
+  // NEW v6.8: fallback canvas per nastri curvi
+  _drawConveyorTurn(ctx, px, py, S, from, to, isExpress) {
+    ctx.fillStyle = isExpress ? '#191200' : '#181e28';
+    ctx.fillRect(px, py, S, S);
+    const color = isExpress ? '#e3b341' : '#4b5563';
+    // Disegna una freccia curva: entrata dal lato OPP[from], uscita dal lato to
+    const mid = S / 2;
+    const cx = px + mid, cy = py + mid;
+    const entrySide = this._OPP[from]; // il robot entra dal lato opposto a from
+    const fromPt = this._sidePoint(px, py, S, entrySide);
+    const toPt   = this._sidePoint(px, py, S, to);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = S * 0.15;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fromPt.x, fromPt.y);
+    ctx.quadraticCurveTo(cx, cy, toPt.x, toPt.y);
+    ctx.stroke();
+    // Freccia alla fine
+    ctx.fillStyle = color;
+    this._arrow(ctx, toPt.x, toPt.y, S * 0.15, to);
+    ctx.fill();
+  },
+
+  _sidePoint(px, py, S, side) {
+    switch(side) {
+      case 'N': return { x: px + S/2, y: py + S*0.15 };
+      case 'S': return { x: px + S/2, y: py + S*0.85 };
+      case 'E': return { x: px + S*0.85, y: py + S/2 };
+      case 'W': return { x: px + S*0.15, y: py + S/2 };
+      default:  return { x: px + S/2, y: py + S/2 };
+    }
   },
 
   _arrow(ctx, cx, cy, r, dir) {

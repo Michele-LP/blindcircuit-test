@@ -1,5 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  GAME.JS — v6.7
+//  GAME.JS — v6.8
+//  MODIFICHE v6.8:
+//  - Layout 2 colonne: rimosso #game-left, tutto in #game-side
+//  - Cell size dinamico: calcolato in base allo spazio e alle celle della mappa
+//  - Resize handler: ricalcola CELL e ridisegna al resize della finestra
 // ═══════════════════════════════════════════════════════════════════════════
 
 const Game = (() => {
@@ -16,6 +20,7 @@ const Game = (() => {
   const _robotImgs = {};
   const DIR_ANGLE  = { N: -Math.PI/2, E: 0, S: Math.PI/2, W: Math.PI };
   let _gameStartTime = null, _timerInterval = null;
+  let _mapW = 12, _mapH = 12;  // NEW v6.8: dimensioni mappa correnti
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
@@ -28,12 +33,41 @@ const Game = (() => {
     if (!anim[p.id]) anim[p.id] = { renderX: p.cx*CELL, renderY: p.cy*CELL, renderAngle: DIR_ANGLE[p.dir]??0 };
   }
 
+  // NEW v6.8: cell size dinamico — solo 2 colonne (canvas + pannello destro)
   function _computeCellSize(mapW, mapH) {
-    const LW=180+12, RW=260+16, HP=80, VP=40;
-    const sW=window.innerWidth-HP, sH=window.innerHeight-VP, mCW=1400-HP;
-    const aW=Math.max(300,Math.min(sW,mCW)-LW-RW), aH=Math.max(300,sH);
-    return Math.max(36, Math.min(Math.floor(aW/mapW), Math.floor(aH/mapH), 80));
+    const RW = 320;                              // larghezza pannello destro (max-width 310 + gap)
+    const PAD = 36;                              // padding complessivo orizzontale
+    const VP = 36;                               // padding verticale
+    const availW = Math.max(300, window.innerWidth - RW - PAD);
+    const availH = Math.max(300, window.innerHeight - VP);
+    return Math.max(24, Math.min(Math.floor(availW / mapW), Math.floor(availH / mapH), 80));
   }
+
+  // NEW v6.8: resize handler — ricalcola cell size e ridimensiona canvas
+  let _resizeTimer = null;
+  function _onResize() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      if (State.phase !== 'game') return;
+      const newCELL = _computeCellSize(_mapW, _mapH);
+      if (newCELL === CELL) return;
+      CELL = newCELL;
+      SZ = Math.round(CELL * 1);
+      Board.CELL = CELL;
+      Board.W = _mapW * CELL;
+      Board.H = _mapH * CELL;
+      Board._cache = null;  // forza rebuild
+      canvas.width = Board.W;
+      canvas.height = Board.H;
+      // ricalcola posizioni anim
+      for (const p of Object.values(State.players)) {
+        if (p.cx === undefined) continue;
+        const a = anim[p.id];
+        if (a) { a.renderX = p.cx * CELL; a.renderY = p.cy * CELL; }
+      }
+    }, 150);
+  }
+  window.addEventListener('resize', _onResize);
 
   function preloadRobotSprites() {
     for (const c of CONFIG.characters) { if (!c.sprite||_robotImgs[c.id])continue; const i=new Image();i.src=c.sprite;_robotImgs[c.id]=i; }
@@ -65,7 +99,7 @@ const Game = (() => {
   function _updateSpectatorBadge() {
     let el=document.getElementById('spectator-badge');
     if (!el) { el=document.createElement('div');el.id='spectator-badge';el.className='spectator-badge';
-      const gl=document.getElementById('game-left'); if(gl)gl.insertBefore(el,gl.firstChild); }
+      const gs=document.getElementById('game-side'); if(gs)gs.insertBefore(el,gs.firstChild); }
     const n=State.spectatorCount||0;
     if (State.isSpectator) { el.textContent='👁 Modalità spettatore'; el.style.display='block'; }
     else if (n>0) { el.textContent=`👁 ${n} spettator${n===1?'e':'i'}`; el.style.display='block'; }
@@ -79,15 +113,15 @@ const Game = (() => {
       if(settings.execSpeed!==undefined)State.execSpeed=settings.execSpeed;
       if(settings.damageDeck){State.damageDeck=settings.damageDeck;State.damageDiscard=[];}
 
-      const mapW=mapData?.width??12, mapH=mapData?.height??12;
-      CELL=_computeCellSize(mapW,mapH); SZ=Math.round(CELL*1);
+      // NEW v6.8: salva dimensioni mappa per resize handler
+      _mapW=mapData?.width??12; _mapH=mapData?.height??12;
+      CELL=_computeCellSize(_mapW,_mapH); SZ=Math.round(CELL*1);
       Board.CELL=CELL; Board.load(mapData); Board.preloadImages(); preloadRobotSprites();
 
       State.phase='game'; State.round=0; State.execAnimating=false;
       canvas.width=Board.W; canvas.height=Board.H;
 
-      const gl=document.getElementById('game-left'); if(gl)gl.style.maxHeight=`${Board.H}px`;
-      const gs=document.getElementById('game-side'); if(gs)gs.style.maxHeight=`${Board.H}px`;
+      // v6.8: no maxHeight constraints — pannello destro usa calc(100vh) via CSS
 
       State.getPlayerList().forEach((p,i)=>{
         const sp=Board.startPos(i);

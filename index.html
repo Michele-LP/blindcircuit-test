@@ -99,39 +99,46 @@
 
   <!-- ── GAME ──────────────────────────────────────────────────────────── -->
   <!--
-    Layout 3 colonne:
-    ┌──────────────┬───────────────────────┬──────────────┐
-    │  #game-left  │        canvas         │  #game-side  │
-    │  codice      │  (usa tutta           │  prog/exec   │
-    │  HUD robot   │   l'altezza)          │  pannelli    │
-    └──────────────┴───────────────────────┴──────────────┘
-    Nessuna top-bar → il canvas ha tutta l'altezza disponibile
+    Layout 2 colonne (v6.8):
+    ┌───────────────────────┬──────────────┐
+    │        canvas         │  #game-side  │
+    │  (centrato vert.)     │  info + prog │
+    │                       │  + exec      │
+    └───────────────────────┴──────────────┘
+    Tutto il pannello info/controlli è a destra.
   -->
   <div id="scr-game" class="screen game-screen">
     <div class="game-main">
 
-      <!-- ① Colonna sinistra: codice stanza + HUD giocatori -->
-      <div id="game-left">
-        <div class="game-timer" id="game-timer">⏱ 00:00</div>
-        <div class="room-code-widget small">
-          <span class="room-code-label">Codice:</span>
-          <span class="room-code-value small" id="game-code">------</span>
-          <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
-        </div>
-        <div class="game-hud" id="game-hud"></div>
-        <div class="action-log-section">
-          <div class="action-log-title">📋 Log</div>
-          <div id="action-log" class="action-log"></div>
-        </div>
-      </div>
-
-      <!-- ② Canvas (dimensione calcolata da _computeCellSize) -->
+      <!-- ① Canvas (centrato verticalmente) -->
       <div class="canvas-wrapper">
         <canvas id="canvas" width="480" height="480"></canvas>
       </div>
 
-      <!-- ③ Colonna destra: pannello programmazione / esecuzione -->
+      <!-- ② Colonna destra: info partita + programmazione / esecuzione -->
       <div id="game-side">
+
+        <!-- Barra info compatta: timer + codice -->
+        <div class="side-info-bar">
+          <div class="game-timer" id="game-timer">⏱ 00:00</div>
+          <div class="room-code-widget small">
+            <span class="room-code-label">Codice:</span>
+            <span class="room-code-value small" id="game-code">------</span>
+            <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
+          </div>
+        </div>
+
+        <!-- HUD giocatori compatto (unificato con energia/pronto) -->
+        <div class="game-hud" id="game-hud"></div>
+
+        <!-- Round info (visibile in partita) -->
+        <div class="round-info" id="round-info"></div>
+
+        <!-- Log eventi -->
+        <div class="action-log-section">
+          <div class="action-log-title">📋 Log</div>
+          <div id="action-log" class="action-log"></div>
+        </div>
 
         <!-- Programmazione -->
         <div id="prog-panel" class="side-panel" style="display:none">

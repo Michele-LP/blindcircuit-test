@@ -1,0 +1,173 @@
+{
+  "id": "blindcircuit_scrapyard",
+  "name": "Blind Circuit - Scrapyard Nexus",
+  "width": 16,
+  "height": 12,
+
+  "startPositions": [
+    { "x": 6, "y": 11, "dir": "N" },
+    { "x": 7, "y": 11, "dir": "N" },
+    { "x": 8, "y": 11, "dir": "N" },
+    { "x": 9, "y": 11, "dir": "N" },
+    { "x": 6, "y": 10, "dir": "N" },
+    { "x": 9, "y": 10, "dir": "N" }
+  ],
+
+  "checkpoints": [
+    { "x": 2, "y": 2, "order": 1 },
+    { "x": 13, "y": 3, "order": 2 },
+    { "x": 8, "y": 8, "order": 3 }
+  ],
+
+  "cells": [
+
+
+    { "x": 7, "y": 5, "type": "pit" },
+    { "x": 8, "y": 5, "type": "pit" },
+    { "x": 7, "y": 6, "type": "pit" },
+    { "x": 8, "y": 6, "type": "pit" },
+
+
+    { "x": 0, "y": 3, "type": "express_conveyor", "dir": "E" },
+    { "x": 1, "y": 3, "type": "express_conveyor", "dir": "E" },
+    { "x": 2, "y": 3, "type": "express_conveyor", "dir": "N" },
+
+
+    { "x": 15, "y": 4, "type": "express_conveyor", "dir": "W" },
+    { "x": 14, "y": 4, "type": "express_conveyor", "dir": "W" },
+    { "x": 13, "y": 4, "type": "express_conveyor", "dir": "N" },
+
+
+    { "x": 5, "y": 9, "type": "conveyor", "dir": "E" },
+    { "x": 6, "y": 9, "type": "conveyor", "dir": "E" },
+    { "x": 7, "y": 9, "type": "conveyor", "dir": "E" },
+    { "x": 8, "y": 9, "type": "conveyor", "dir": "N" },
+
+    { "x": 10, "y": 9, "type": "conveyor", "dir": "W" },
+    { "x": 9, "y": 9, "type": "conveyor", "dir": "W" },
+
+
+    { "x": 4, "y": 5, "type": "express_conveyor", "dir": "E" },
+    { "x": 5, "y": 5, "type": "express_conveyor", "dir": "E" },
+    { "x": 6, "y": 5, "type": "express_conveyor", "dir": "E" },
+
+    { "x": 9, "y": 6, "type": "express_conveyor", "dir": "W" },
+    { "x": 10, "y": 6, "type": "express_conveyor", "dir": "W" },
+    { "x": 11, "y": 6, "type": "express_conveyor", "dir": "W" },
+
+
+    {
+      "x": 3,
+      "y": 3,
+      "type": "conveyor_turn",
+      "from": "E",
+      "to": "N"
+    },
+    {
+      "x": 12,
+      "y": 4,
+      "type": "conveyor_turn",
+      "from": "W",
+      "to": "N"
+    },
+
+
+    { "x": 1, "y": 7, "type": "conveyor", "dir": "N" },
+    { "x": 1, "y": 6, "type": "conveyor", "dir": "N" },
+    { "x": 14, "y": 7, "type": "conveyor", "dir": "N" },
+    { "x": 14, "y": 6, "type": "conveyor", "dir": "N" },
+
+
+    { "x": 4, "y": 2, "type": "gear_cw" },
+    { "x": 11, "y": 2, "type": "gear_ccw" },
+    { "x": 3, "y": 8, "type": "gear_ccw" },
+    { "x": 12, "y": 8, "type": "gear_cw" },
+
+
+    { "x": 0, "y": 11, "type": "recharge" },
+    { "x": 15, "y": 0, "type": "recharge" },
+    { "x": 8, "y": 1, "type": "recharge" },
+
+
+    {
+      "x": 5,
+      "y": 4,
+      "type": "push_panel",
+      "dir": "S",
+      "activeRegisters": [1, 3, 5]
+    },
+    {
+      "x": 10,
+      "y": 7,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [2, 4]
+    },
+    {
+      "x": 8,
+      "y": 10,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [5]
+    },
+
+
+    { "x": 0, "y": 5, "type": "pit" },
+    { "x": 15, "y": 5, "type": "pit" },
+    { "x": 2, "y": 10, "type": "pit" },
+    { "x": 13, "y": 10, "type": "pit" }
+  ],
+
+  "walls": [
+    { "x": 2, "y": 2, "side": "S" },
+    { "x": 2, "y": 2, "side": "E" },
+
+    { "x": 13, "y": 3, "side": "W" },
+    { "x": 13, "y": 3, "side": "S" },
+
+    { "x": 7, "y": 4, "side": "N" },
+    { "x": 8, "y": 4, "side": "N" },
+
+    { "x": 7, "y": 7, "side": "S" },
+    { "x": 8, "y": 7, "side": "S" },
+
+    { "x": 5, "y": 8, "side": "E" },
+    { "x": 10, "y": 8, "side": "W" },
+
+    { "x": 4, "y": 1, "side": "S" },
+    { "x": 11, "y": 1, "side": "S" },
+
+    { "x": 1, "y": 9, "side": "E" },
+    { "x": 14, "y": 9, "side": "W" },
+
+    { "x": 6, "y": 11, "side": "W" },
+    { "x": 9, "y": 11, "side": "E" }
+  ],
+
+  "lasers": [
+    {
+      "x": 0,
+      "y": 1,
+      "dir": "E",
+      "strength": 1
+    },
+    {
+      "x": 15,
+      "y": 9,
+      "dir": "W",
+      "strength": 1
+    },
+    {
+      "x": 8,
+      "y": 0,
+      "dir": "S",
+      "strength": 2
+    },
+    {
+      "x": 5,
+      "y": 11,
+      "dir": "N",
+      "strength": 1
+    }
+  ]
+}

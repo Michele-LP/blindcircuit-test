@@ -16,7 +16,7 @@ body {
 /* ════════════════════════════════════════ SCREENS */
 .screen { display: none; flex-direction: column; align-items: center; gap: 20px; width: 100%; /*max-width: 720px; */}
 .screen.active { display: flex; }
-.game-screen { max-width: 1400px !important; align-items: flex-start;}
+.game-screen { max-width: none !important; align-items: stretch; padding: 0; gap: 0; }
 
 /* ════════════════════════════════════════ TYPE */
 .title    { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
@@ -180,49 +180,24 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 .toggle-btn:hover  { background: #2d333b; color: #c9d1d9; }
 .toggle-btn.active { background: rgba(31,111,235,0.2); color: #58a6ff; border-color: #1f6feb; }
 
-/* ════════════════════════════════════════ GAME: 3 colonne */
+/* ════════════════════════════════════════ GAME: 2 colonne (v6.8) */
 .game-main {
   display: flex;
-  flex-wrap: nowrap;       /* ← FIX: impedisce che il canvas vada a capo */
-  gap: 10px;              /* leggermente ridotto: il padding ci pensa */
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: center;          /* ← centra verticalmente canvas e pannello */
+  justify-content: center;
   width: 100%;
-
-
+  min-height: calc(100vh - 24px);
   padding: 12px;
   border-radius: 12px;
   box-shadow: 0 4px 28px rgba(0,0,0,0.55);
 }
 
-/* Colonna sinistra */
-#game-left { width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px;}
-#game-left::-webkit-scrollbar { width: 3px; }
-#game-left::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
-
-/* HUD: card in colonna */
-.game-hud { display: flex; flex-direction: column; gap: 6px; }
-.hud-card { display: flex; align-items: center; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px; transition: border-color 0.2s; }
-.hud-card.is-me { border-color: #1f6feb; }
-.hud-robot-wrap { width: 34px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
-.hud-robot-img   { width: 28px; height: 28px; object-fit: contain; display: block; }
-.hud-robot-emoji { font-size: 1.3rem; line-height: 1; }
-.hud-info  { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.hud-name  { font-size: 0.74rem; font-weight: 700; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-.hud-sub   { font-size: 0.64rem; color: #8b949e; white-space: nowrap; font-family: 'Courier New', monospace; }
-.hud-card.is-me .hud-name { color: #58a6ff; }
-
-/* ── Canvas wrapper ──────────────────────────────────────────────────────
-   Avvolge il canvas con un padding che mostra l'immagine di sfondo
-   come "cornice industriale" intorno alla plancia.
-   Richiede in index.html: <div class="canvas-wrapper"><canvas ...></canvas></div>
-*/
+/* Canvas wrapper: centrato verticalmente dal flex parent */
 .canvas-wrapper {
   position: relative;
   flex-shrink: 0;
-  /*padding: 10px;
-  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
-  border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5);*/
 }
 
 canvas {
@@ -231,22 +206,60 @@ canvas {
   border-radius: 6px;
 }
 
-/* Colonna destra */
-#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px; margin-top:11vh;}
+/* Colonna destra — unica colonna info/controlli */
+#game-side {
+  flex: 1;
+  min-width: 230px;
+  max-width: 310px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(22,27,34,0.90);
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 6px 8px;
+  align-self: center;
+}
 #game-side::-webkit-scrollbar { width: 4px; }
 #game-side::-webkit-scrollbar-track { background: transparent; }
 #game-side::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
 .side-panel { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .game-controls-sm { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto; padding-top: 8px; }
 
+/* Barra info compatta: timer + codice affiancati */
+.side-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #21262d;
+}
+
+/* Round info */
+.round-info { font-size: 0.72rem; color: #8b949e; text-align: center; font-weight: 600; }
+
 /* Mobile */
 @media (max-width: 700px) {
-  .game-main  { flex-direction: column; align-items: stretch; }
-  #game-left  { width: 100%; max-height: none !important; flex-direction: row; flex-wrap: wrap; }
-  .game-hud   { flex-direction: row; flex-wrap: wrap; }
-  #game-side  { max-width: 100%; max-height: none !important; }
+  .game-main  { flex-direction: column; align-items: stretch; min-height: auto; }
+  #game-side  { max-width: 100%; max-height: none !important; align-self: stretch; }
   .canvas-wrapper { padding: 6px; }
 }
+
+/* ════════════════════════════════════════ HUD GIOCATORI (v6.8 compatto) */
+.game-hud { display: flex; flex-direction: column; gap: 3px; }
+.hud-card { display: flex; align-items: center; gap: 6px; background: rgba(22,27,34,0.80); border: 1px solid #30363d; border-radius: 6px; padding: 4px 6px; transition: border-color 0.2s; }
+.hud-card.is-me { border-color: #1f6feb; }
+.hud-robot-wrap { width: 26px; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.hud-robot-img   { width: 22px; height: 22px; object-fit: contain; display: block; }
+.hud-robot-emoji { font-size: 1rem; line-height: 1; }
+.hud-info  { display: flex; flex-direction: column; gap: 0px; min-width: 0; flex: 1; }
+.hud-name  { font-size: 0.68rem; font-weight: 700; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.hud-sub   { font-size: 0.58rem; color: #8b949e; white-space: nowrap; font-family: 'Courier New', monospace; }
+.hud-card.is-me .hud-name { color: #58a6ff; }
+.hud-ready-icon { font-size: 0.65rem; flex-shrink: 0; }
 
 /* ════════════════════════════════════════ PROGRAMMAZIONE */
 .prog-header-sm { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -400,12 +413,12 @@ canvas {
 .worm-card:hover { transform:none !important; }
 
 /* ── TIMER ─────────────────────────────────────────────────────────── */
-.game-timer { font-family:'Courier New',monospace; font-size:0.95rem; font-weight:700; color:#e3b341; text-align:center; background:rgba(22,27,34,0.85); border:1px solid #30363d; border-radius:6px; padding:4px 8px; letter-spacing:0.06em; }
+.game-timer { font-family:'Courier New',monospace; font-size:0.82rem; font-weight:700; color:#e3b341; letter-spacing:0.06em; white-space:nowrap; }
 
 /* ── ACTION LOG ────────────────────────────────────────────────────── */
-.action-log-section { display:flex; flex-direction:column; gap:4px; margin-top:4px; flex:1; min-height:0; }
-.action-log-title { font-size:0.7rem; font-weight:700; color:#8b949e; text-transform:uppercase; letter-spacing:0.07em; padding:2px 4px; }
-.action-log { flex:1; min-height:60px; max-height:180px; overflow-y:auto; background:rgba(13,17,23,0.85); border:1px solid #21262d; border-radius:6px; padding:4px 6px; font-size:0.68rem; display:flex; flex-direction:column; gap:2px; }
+.action-log-section { display:flex; flex-direction:column; gap:4px; margin-top:2px; min-height:0; }
+.action-log-title { font-size:0.65rem; font-weight:700; color:#8b949e; text-transform:uppercase; letter-spacing:0.07em; padding:2px 4px; }
+.action-log { min-height:50px; max-height:130px; overflow-y:auto; background:rgba(13,17,23,0.85); border:1px solid #21262d; border-radius:6px; padding:4px 6px; font-size:0.65rem; display:flex; flex-direction:column; gap:2px; }
 .action-log::-webkit-scrollbar { width:3px; }
 .action-log::-webkit-scrollbar-thumb { background:#30363d; border-radius:2px; }
 .log-entry { display:flex; align-items:baseline; gap:5px; padding:1px 4px; border-left:2px solid transparent; border-radius:2px; color:#c9d1d9; line-height:1.3; word-break:break-word; }
