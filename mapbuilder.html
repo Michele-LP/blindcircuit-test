@@ -172,6 +172,24 @@ const CELL_COLORS = {
   push_panel:'#0d1a2a', laser:'#1a0a0a',
 };
 
+// Percorsi tile — identici a CONFIG.tileImages nel gioco
+const TILE_PATHS = {
+  floor_a:   'assets/tiles/pavement_A.png',
+  floor_b:   'assets/tiles/pavement_B.png',
+  pit:       'assets/tiles/hole.png',
+  conveyor:  'assets/tiles/beltForward1.png',
+  express:   'assets/tiles/beltForward2.png',
+  gear_cw:   'assets/tiles/rotationClockwise.png',
+  gear_ccw:  'assets/tiles/rotationCounterClockwise.png',
+  recharge:  'assets/tiles/recharge.png',
+  push_panel:'assets/tiles/spring_on.png',
+  laser_src: 'assets/tiles/Laser_A.png',
+  cp1:       'assets/tiles/Finish1.png',
+  cp2:       'assets/tiles/Finish2.png',
+  cp3:       'assets/tiles/Finish3.png',
+};
+const TILE_IMGS = {};  // { key: HTMLImageElement } — riempito da _preloadTiles
+
 const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
 
@@ -193,8 +211,18 @@ const E = {
   init() {
     this._buildToolbox();
     this._bindEvents();
+    this._preloadTiles();
     this._resize(12, 12);
     this.render();
+  },
+
+  _preloadTiles() {
+    for (const [key, src] of Object.entries(TILE_PATHS)) {
+      const img = new Image();
+      img.onload = () => this.render();   // ridisegna quando l'immagine è pronta
+      img.src = src;
+      TILE_IMGS[key] = img;
+    }
   },
 
   // ── Toolbox ────────────────────────────────────────────────────────────
@@ -517,11 +545,17 @@ const E = {
     const S = this.cellSize, W = this.gridW, H = this.gridH;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Griglia base
+    // Griglia base — con tile PNG pavimento
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const px = x*S, py = y*S;
-      ctx.fillStyle = (x+y)%2===0 ? '#1c2128' : '#1a1e26';
-      ctx.fillRect(px, py, S, S);
+      const floorKey = (x+y)%2===0 ? 'floor_a' : 'floor_b';
+      const img = TILE_IMGS[floorKey];
+      if (img?.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, px, py, S, S);
+      } else {
+        ctx.fillStyle = (x+y)%2===0 ? '#1c2128' : '#1a1e26';
+        ctx.fillRect(px, py, S, S);
+      }
       ctx.strokeStyle = '#21262d'; ctx.lineWidth = 0.5;
       ctx.strokeRect(px, py, S, S);
     }
@@ -552,6 +586,34 @@ const E = {
 
   _drawCell(cx, cy, cell) {
     const S = this.cellSize, px = cx*S, py = cy*S;
+
+    // ── Prova a disegnare il tile PNG ──────────────────────────────────
+    const tileKey = {
+      pit:'pit', conveyor:'conveyor', express_conveyor:'express',
+      gear_cw:'gear_cw', gear_ccw:'gear_ccw', recharge:'recharge',
+      push_panel:'push_panel',
+    }[cell.type];
+
+    if (tileKey) {
+      const img = TILE_IMGS[tileKey];
+      if (img?.complete && img.naturalWidth > 0) {
+        const rot = DIR_ROT[cell.dir ?? 'E'] ?? 0;
+        ctx.save();
+        ctx.translate(px+S/2, py+S/2);
+        if (['conveyor','express_conveyor','push_panel'].includes(cell.type)) ctx.rotate(rot);
+        ctx.drawImage(img, -S/2, -S/2, S, S);
+        ctx.restore();
+        // Overlay testo per push_panel (registri attivi)
+        if (cell.type === 'push_panel' && cell.activeRegisters?.length) {
+          ctx.fillStyle = '#fff'; ctx.font = `bold ${S*0.18}px JetBrains Mono`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText((cell.activeRegisters).join(','), px+S/2, py+S-2);
+        }
+        return;   // ← PNG usato, non serve il fallback canvas
+      }
+    }
+
+    // ── Fallback: disegno canvas originale (se PNG mancante) ───────────
     const bg = CELL_COLORS[cell.type] ?? 'transparent';
     if (bg !== 'transparent') { ctx.fillStyle = bg; ctx.fillRect(px+1, py+1, S-2, S-2); }
 
@@ -601,11 +663,18 @@ const E = {
   },
 
   _drawCheckpoint(cp) {
-    const S=this.cellSize, px=cp.x*S+S/2, py=cp.y*S+S/2;
+    const S=this.cellSize, px=cp.x*S, py=cp.y*S;
+    const img = TILE_IMGS[`cp${cp.order}`];
+    if (img?.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, px, py, S, S);
+      return;
+    }
+    // Fallback originale
+    const cx=px+S/2, cy=py+S/2;
     const colors=['#1f6feb','#3fb950','#e3b341'];
-    ctx.fillStyle=colors[(cp.order-1)%3]; ctx.beginPath(); ctx.arc(px,py,S*0.32,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=colors[(cp.order-1)%3]; ctx.beginPath(); ctx.arc(cx,cy,S*0.32,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#fff'; ctx.font=`bold ${S*0.34}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(cp.order, px, py+1);
+    ctx.fillText(cp.order, cx, cy+1);
   },
 
   _drawStart(st, idx) {
@@ -618,14 +687,22 @@ const E = {
   },
 
   _drawLaser(l) {
-    const S=this.cellSize, px=l.x*S+S/2, py=l.y*S+S/2;
-    ctx.fillStyle='#f85149'; ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+    const S=this.cellSize, px=l.x*S, py=l.y*S;
+    const img = TILE_IMGS['laser_src'];
+    if (img?.complete && img.naturalWidth > 0) {
+      const rot = DIR_ROT[l.dir ?? 'E'] ?? 0;
+      ctx.save(); ctx.translate(px+S/2, py+S/2); ctx.rotate(rot);
+      ctx.drawImage(img, -S/2, -S/2, S, S); ctx.restore();
+    } else {
+      ctx.fillStyle='#f85149'; ctx.beginPath(); ctx.arc(px+S/2,py+S/2,5,0,Math.PI*2); ctx.fill();
+    }
+    // Raggio tratteggiato (sempre, anche con PNG)
     const v=VECS[l.dir]; ctx.strokeStyle='rgba(248,81,73,0.4)'; ctx.lineWidth=2; ctx.setLineDash([3,3]);
-    ctx.beginPath(); ctx.moveTo(px,py);
-    let ex=px+v[0]*S*8, ey=py+v[1]*S*8;
+    ctx.beginPath(); ctx.moveTo(px+S/2, py+S/2);
+    let ex=px+S/2+v[0]*S*8, ey=py+S/2+v[1]*S*8;
     ex=Math.max(0,Math.min(canvas.width,ex)); ey=Math.max(0,Math.min(canvas.height,ey));
     ctx.lineTo(ex,ey); ctx.stroke(); ctx.setLineDash([]);
-    if(l.strength>1){ctx.fillStyle='#f85149';ctx.font=`bold ${S*0.2}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`×${l.strength}`,px,py-7);}
+    if(l.strength>1){ctx.fillStyle='#f85149';ctx.font=`bold ${S*0.2}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`×${l.strength}`,px+S/2,py+S/2-7);}
   },
 
   _drawWall(cx, cy, side) {
