@@ -71,7 +71,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 */
 #scr-menu {
   background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
-  /*min-height: calc(100vh - 32px);*/
+  min-height: 100vh;
   border-radius: 14px;
   justify-content: flex-end;
   padding-bottom: 48px;
@@ -101,7 +101,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
 */
 #scr-lobby {
   background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
-  min-height: calc(100vh - 32px);
+  min-height: 100vh;
   border-radius: 14px;
   position: relative;
   gap: 12px;
@@ -360,7 +360,7 @@ canvas {
 /* ════ JOIN: sfondo immagine + card vetro ════ */
 #scr-join {
   background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
-  min-height: calc(100vh - 32px);
+  min-height: 100vh;
   border-radius: 14px;
   position: relative;
   justify-content: center;
