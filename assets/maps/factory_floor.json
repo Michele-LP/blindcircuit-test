@@ -1,0 +1,546 @@
+{
+  "id": "factory_floor",
+  "name": "Factory Floor",
+  "width": 16,
+  "height": 12,
+  "startPositions": [
+    {
+      "x": 10,
+      "y": 11,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 11,
+      "dir": "N"
+    },
+    {
+      "x": 12,
+      "y": 11,
+      "dir": "N"
+    },
+    {
+      "x": 13,
+      "y": 11,
+      "dir": "N"
+    },
+    {
+      "x": 14,
+      "y": 11,
+      "dir": "N"
+    },
+    {
+      "x": 15,
+      "y": 11,
+      "dir": "N"
+    }
+  ],
+  "checkpoints": [
+    {
+      "x": 3,
+      "y": 2,
+      "order": 1
+    },
+    {
+      "x": 12,
+      "y": 5,
+      "order": 2
+    },
+    {
+      "x": 7,
+      "y": 9,
+      "order": 3
+    }
+  ],
+  "cells": [
+    {
+      "x": 7,
+      "y": 5,
+      "type": "pit"
+    },
+    {
+      "x": 8,
+      "y": 5,
+      "type": "pit"
+    },
+    {
+      "x": 7,
+      "y": 6,
+      "type": "pit"
+    },
+    {
+      "x": 8,
+      "y": 6,
+      "type": "pit"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 4,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 6,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 7,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 8,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 9,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 10,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 2,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 2,
+      "y": 6,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 9,
+      "y": 5,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 9,
+      "y": 6,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 6,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 6,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 5,
+      "y": 9,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 6,
+      "y": 9,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 9,
+      "y": 9,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 10,
+      "y": 9,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 11,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 12,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 13,
+      "y": 6,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "type": "gear_cw"
+    },
+    {
+      "x": 10,
+      "y": 7,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 14,
+      "y": 3,
+      "type": "gear_cw"
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 0,
+      "y": 6,
+      "type": "recharge"
+    },
+    {
+      "x": 15,
+      "y": 5,
+      "type": "recharge"
+    },
+    {
+      "x": 8,
+      "y": 0,
+      "type": "recharge"
+    },
+    {
+      "x": 4,
+      "y": 8,
+      "type": "push_panel",
+      "dir": "W",
+      "activeRegisters": [
+        1,
+        3,
+        5
+      ]
+    },
+    {
+      "x": 11,
+      "y": 8,
+      "type": "push_panel",
+      "dir": "W",
+      "activeRegisters": [
+        2,
+        4
+      ]
+    },
+    {
+      "x": 10,
+      "y": 1,
+      "type": "push_panel",
+      "dir": "S",
+      "activeRegisters": [
+        1,
+        4
+      ]
+    },
+    {
+      "x": 1,
+      "y": 9,
+      "type": "pit"
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 1,
+      "y": 4,
+      "type": "express_conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "type": "express_conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 3,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 4,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 5,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "type": "conveyor_turn",
+      "from": "W",
+      "to": "S"
+    },
+    {
+      "x": 11,
+      "y": 3,
+      "type": "conveyor_turn",
+      "from": "E",
+      "to": "S"
+    },
+    {
+      "x": 5,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 7,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 9,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 11,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 4,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 6,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 8,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 10,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 12,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 12,
+      "y": 1,
+      "type": "pit"
+    },
+    {
+      "x": 13,
+      "y": 1,
+      "type": "pit"
+    },
+    {
+      "x": 13,
+      "y": 2,
+      "type": "pit"
+    },
+    {
+      "x": 12,
+      "y": 2,
+      "type": "pit"
+    },
+    {
+      "x": 2,
+      "y": 9,
+      "type": "pit"
+    },
+    {
+      "x": 1,
+      "y": 10,
+      "type": "pit"
+    },
+    {
+      "x": 3,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 13,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 15,
+      "y": 10,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 14,
+      "y": 10,
+      "type": "conveyor",
+      "dir": "E"
+    }
+  ],
+  "walls": [
+    {
+      "x": 3,
+      "y": 2,
+      "side": "S"
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "side": "E"
+    },
+    {
+      "x": 6,
+      "y": 5,
+      "side": "W"
+    },
+    {
+      "x": 9,
+      "y": 6,
+      "side": "E"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "side": "S"
+    },
+    {
+      "x": 6,
+      "y": 1,
+      "side": "S"
+    },
+    {
+      "x": 12,
+      "y": 5,
+      "side": "W"
+    },
+    {
+      "x": 14,
+      "y": 5,
+      "side": "E"
+    },
+    {
+      "x": 1,
+      "y": 9,
+      "side": "E"
+    },
+    {
+      "x": 13,
+      "y": 8,
+      "side": "N"
+    },
+    {
+      "x": 5,
+      "y": 8,
+      "side": "E"
+    },
+    {
+      "x": 10,
+      "y": 8,
+      "side": "W"
+    },
+    {
+      "x": 0,
+      "y": 9,
+      "side": "N"
+    },
+    {
+      "x": 12,
+      "y": 5,
+      "side": "N"
+    },
+    {
+      "x": 9,
+      "y": 11,
+      "side": "W"
+    },
+    {
+      "x": 8,
+      "y": 9,
+      "side": "W"
+    }
+  ],
+  "lasers": [
+    {
+      "x": 0,
+      "y": 2,
+      "dir": "E",
+      "strength": 1
+    },
+    {
+      "x": 15,
+      "y": 8,
+      "dir": "W",
+      "strength": 1
+    },
+    {
+      "x": 7,
+      "y": 0,
+      "dir": "S",
+      "strength": 1
+    }
+  ]
+}
