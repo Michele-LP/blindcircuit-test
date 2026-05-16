@@ -157,7 +157,46 @@ const Game = (() => {
         if(p.cx===undefined)continue;
         const a=anim[p.id]; if(a)this._drawRobot(p,a.renderX,a.renderY,a.renderAngle);
       }
+      this._drawBeams();
       this._updateHudSubs();
+    },
+
+    // ── Raggi laser visivi (v6.7.1) ─────────────────────────────────────
+    // Disegna i raggi laser attivi come linee sfumanti con glow.
+    // I raggi vengono aggiunti da execution.js → applyAction('laser_beam')
+    // e si dissolvono automaticamente dopo BEAM_DURATION_MS.
+    _drawBeams() {
+      const beams = State._activeBeams;
+      if (!beams || !beams.length) return;
+      const BEAM_DURATION_MS = 600;
+      const now = performance.now();
+      // Filtra raggi scaduti
+      State._activeBeams = beams.filter(b => now - b.t < BEAM_DURATION_MS);
+      for (const b of State._activeBeams) {
+        const progress = (now - b.t) / BEAM_DURATION_MS;
+        const alpha = Math.max(0, 1 - progress);
+        const halfCell = CELL / 2;
+        const x1 = b.fromCx * CELL + halfCell;
+        const y1 = b.fromCy * CELL + halfCell;
+        const x2 = b.toCx   * CELL + halfCell;
+        const y2 = b.toCy   * CELL + halfCell;
+        // Glow
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.3;
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth   = CELL * 0.25;
+        ctx.lineCap     = 'round';
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        // Raggio principale
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth   = CELL * 0.08;
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur  = 8;
+        ctx.setLineDash([CELL * 0.15, CELL * 0.08]);
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        ctx.restore();
+      }
     },
 
     _drawRobot(p,rx,ry,angle) {

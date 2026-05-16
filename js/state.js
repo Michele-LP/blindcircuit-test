@@ -24,6 +24,9 @@ const State = {
   spectators:     {},         // solo host: { peerId: true }
   spectatorCount: 0,          // broadcast a tutti
 
+  // Raggi laser visivi (v6.7.1) — array di beam attivi, letto da game.js
+  _activeBeams: [],
+
   myPlayer()    { return this.players[this.myId] ?? null; },
   getPlayerList() {
     return Object.values(this.players).sort((a, b) => a.joinOrder - b.joinOrder);
@@ -55,5 +58,6 @@ const State = {
     this.isSpectator    = false;
     this.spectators     = {};
     this.spectatorCount = 0;
+    this._activeBeams   = [];
   },
 };

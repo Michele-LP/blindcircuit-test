@@ -225,29 +225,100 @@ const Execution = (() => {
   }
 
   // ── Laser ────────────────────────────────────────────────────────────────
+  //
+  // FIX v6.7.1: aggiunto wallCheck tra sorgente laser e prima cella.
+  // NEW v6.7.1: azione `laser_beam` con coordinate da/a per il raggio visivo.
+  //    game.js legge State._activeBeams e li disegna come linee sfumanti.
+  //
   function fireLasers(simShared,sim,reg){
-    const a=[],str=(typeof RULES!=='undefined'?RULES?.lasers?.boardLaserStrength:null)??CONFIG.boardLaserStrength??1;
+    const a=[];
+    const defaultStr=(typeof RULES!=='undefined'?RULES?.lasers?.boardLaserStrength:null)??CONFIG.boardLaserStrength??1;
     for (const L of Board.data?.lasers??[]){
-      const st=L.strength??str,v=VECS[L.dir]; let lx=L.x+v[0],ly=L.y+v[1];
+      const st=L.strength??defaultStr;
+      const v=VECS[L.dir];
+
+      // FIX: controlla se un muro blocca il raggio GIÀ alla sorgente
+      // (muro sul lato di uscita della cella sorgente, o muro sul lato
+      //  di ingresso della prima cella da scansionare)
+      if (Board.wallsAt(L.x,L.y).includes(L.dir)) continue;
+      const firstX=L.x+v[0], firstY=L.y+v[1];
+      if (!Board.inBounds(firstX,firstY)) continue;
+      if (Board.wallsAt(firstX,firstY).includes(OPP[L.dir])) continue;
+
+      // Scansiona il raggio cella per cella
+      let lx=firstX, ly=firstY;
+      let endX=lx, endY=ly;
+      let hitPlayer=null;
+
       while (Board.inBounds(lx,ly)){
+        endX=lx; endY=ly;
         const hit=Object.values(sim).find(s=>s.cx===lx&&s.cy===ly);
-        if (hit){for(let i=0;i<st;i++){const d=drawDamage(simShared,hit,reg);if(d){d.source='board_laser';a.push(d);}} break;}
-        if (wallBlocks(lx,ly,L.dir)) break; lx+=v[0];ly+=v[1];
+        if (hit){ hitPlayer=hit; break; }
+        if (wallBlocks(lx,ly,L.dir)) break;
+        lx+=v[0]; ly+=v[1];
       }
-    } return a;
+
+      // Raggio visivo: dalla sorgente al punto di impatto (o fine mappa)
+      a.push({
+        type:'laser_beam',
+        fromCx:L.x, fromCy:L.y,
+        toCx:endX, toCy:endY,
+        color:'#f85149',
+        source:'board',
+      });
+
+      // Danno al robot colpito
+      if (hitPlayer){
+        for(let i=0;i<st;i++){
+          const d=drawDamage(simShared,hitPlayer,reg);
+          if(d){d.source='board_laser';a.push(d);}
+        }
+      }
+    }
+    return a;
   }
+
   function fireRobotWeapons(simShared,sim,reg){
-    const a=[],str=(typeof RULES!=='undefined'?RULES?.lasers?.robotLaserStrength:null)??CONFIG.robotLaserStrength??1;
+    const a=[];
+    const str=(typeof RULES!=='undefined'?RULES?.lasers?.robotLaserStrength:null)??CONFIG.robotLaserStrength??1;
     for (const id of turnOrder()){
       const sh=sim[id]; if(!sh)continue;
+
+      // Muro blocca il laser del robot in partenza
       if(wallBlocks(sh.cx,sh.cy,sh.dir))continue;
-      const v=VECS[sh.dir]; let lx=sh.cx+v[0],ly=sh.cy+v[1];
+
+      const v=VECS[sh.dir];
+      let lx=sh.cx+v[0],ly=sh.cy+v[1];
+      let endX=sh.cx, endY=sh.cy;   // fallback: zero-length beam
+      let hitPlayer=null;
+
       while(Board.inBounds(lx,ly)){
+        endX=lx; endY=ly;    // il raggio arriva almeno qui
         const hit=Object.values(sim).find(s=>s.id!==id&&s.cx===lx&&s.cy===ly);
-        if(hit){for(let i=0;i<str;i++){const d=drawDamage(simShared,hit,reg);if(d){d.source='robot_laser';d.shooterId=id;a.push(d);}} break;}
-        if(wallBlocks(lx,ly,sh.dir))break; lx+=v[0];ly+=v[1];
+        if(hit){ hitPlayer=hit; break; }
+        if(wallBlocks(lx,ly,sh.dir)) break;   // muro blocca uscita → raggio si ferma qui
+        lx+=v[0]; ly+=v[1];
       }
-    } return a;
+
+      // Raggio visivo dal robot — colore del personaggio
+      const pInfo=_playerInfo(id);
+      a.push({
+        type:'laser_beam',
+        fromCx:sh.cx, fromCy:sh.cy,
+        toCx:endX, toCy:endY,
+        color:pInfo.color,
+        source:'robot',
+        shooterId:id,
+      });
+
+      if(hitPlayer){
+        for(let i=0;i<str;i++){
+          const d=drawDamage(simShared,hitPlayer,reg);
+          if(d){d.source='robot_laser';d.shooterId=id;a.push(d);}
+        }
+      }
+    }
+    return a;
   }
 
   function checkCheckpoint(s){
@@ -273,6 +344,18 @@ const Execution = (() => {
       const i=_playerInfo(a.id);
       const prefix=a.isWorm?'🦠 ':'';
       if(typeof Log!=='undefined')Log.add(`${i.name}: ${prefix}${a.cardName}`,{color:i.color});
+      return;
+    }
+    // NEW v6.7.1: raggio laser visivo → aggiunto a State._activeBeams
+    // game.js lo legge nel render loop e lo disegna come linea sfumante.
+    if (a.type==='laser_beam'){
+      if(!State._activeBeams) State._activeBeams=[];
+      State._activeBeams.push({
+        fromCx:a.fromCx, fromCy:a.fromCy,
+        toCx:a.toCx, toCy:a.toCy,
+        color:a.color,
+        t:performance.now(),
+      });
       return;
     }
 
@@ -498,7 +581,7 @@ const Execution = (() => {
           applyAction(action);
           // Azioni invisibili: nessun delay
           if(['deck_sync','damage_deck_sync','phase_marker','card_played'].includes(action.type)) continue;
-          const vis=action.type==='move'||action.type==='rotate'||action.type==='fall';
+          const vis=action.type==='move'||action.type==='rotate'||action.type==='fall'||action.type==='laser_beam';
           await wait(vis?aDelay:Math.max(60,aDelay*0.15));
         }
         if(token.value)return;
