@@ -232,7 +232,7 @@ canvas {
 }
 
 /* Colonna destra */
-#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px;}
+#game-side { flex: 1; min-width: 230px; max-width: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: rgba(22,27,34,0.90); border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px; margin-top:11vh;}
 #game-side::-webkit-scrollbar { width: 4px; }
 #game-side::-webkit-scrollbar-track { background: transparent; }
 #game-side::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }

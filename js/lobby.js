@@ -28,6 +28,20 @@ const Lobby = {
   _initGameSettings() {
     const el=document.getElementById('game-settings');if(!el)return;
     el.style.display=State.isHost?'flex':'none'; if(!State.isHost)return;
+
+    // Selettore mappa
+    const mapSel=document.getElementById('map-select');
+    if(mapSel && CONFIG.availableMaps){
+      mapSel.innerHTML='';
+      for(const m of CONFIG.availableMaps){
+        const o=document.createElement('option');o.value=m.id;o.textContent=m.name;
+        if(m.id===CONFIG.defaultMap)o.selected=true;
+        mapSel.appendChild(o);
+      }
+      mapSel.addEventListener('change',()=>{ State.selectedMap=mapSel.value; });
+      State.selectedMap=CONFIG.defaultMap;
+    }
+
     el.querySelectorAll('[data-exec-mode]').forEach(b=>{
       b.classList.toggle('active',b.dataset.execMode===(State.execMode??'auto'));
       b.addEventListener('click',()=>{State.execMode=b.dataset.execMode;el.querySelectorAll('[data-exec-mode]').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
@@ -192,13 +206,19 @@ const Lobby = {
     if(!State.isHost||!State.allReady())return;
     const settings={execMode:State.execMode,execSpeed:State.execSpeed};
     const dd=this._buildDamageDeck();State.damageDeck=dd;State.damageDiscard=[];
-    const tryFetch=(paths)=>{
-      if(!paths.length){Net.broadcast({type:'GAME_START',mapData:null,damageDeck:dd,...settings});Game.init(null,{...settings,damageDeck:dd});return;}
-      fetch(paths[0]).then(r=>{if(!r.ok)throw 0;return r.json();})
+    // Cerca il file della mappa selezionata
+    const mapId=State.selectedMap||CONFIG.defaultMap;
+    const mapDef=CONFIG.availableMaps?.find(m=>m.id===mapId);
+    const paths=mapDef
+      ? [mapDef.file, `assets/maps/${mapId}.json`, `${mapId}.json`]
+      : [`assets/maps/${mapId}.json`, `${mapId}.json`];
+    const tryFetch=(ps)=>{
+      if(!ps.length){Net.broadcast({type:'GAME_START',mapData:null,damageDeck:dd,...settings});Game.init(null,{...settings,damageDeck:dd});return;}
+      fetch(ps[0]).then(r=>{if(!r.ok)throw 0;return r.json();})
         .then(md=>{Net.broadcast({type:'GAME_START',mapData:md,damageDeck:dd,...settings});Game.init(md,{...settings,damageDeck:dd});})
-        .catch(()=>tryFetch(paths.slice(1)));
+        .catch(()=>tryFetch(ps.slice(1)));
     };
-    tryFetch([`assets/maps/${CONFIG.defaultMap}.json`,`${CONFIG.defaultMap}.json`]);
+    tryFetch(paths);
   },
 
   _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');},

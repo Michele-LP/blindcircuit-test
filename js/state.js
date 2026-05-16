@@ -26,6 +26,7 @@ const State = {
 
   // Raggi laser visivi (v6.7.1) — array di beam attivi, letto da game.js
   _activeBeams: [],
+  selectedMap: null,
 
   myPlayer()    { return this.players[this.myId] ?? null; },
   getPlayerList() {
@@ -59,5 +60,6 @@ const State = {
     this.spectators     = {};
     this.spectatorCount = 0;
     this._activeBeams   = [];
+    this.selectedMap    = null;
   },
 };

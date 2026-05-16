@@ -19,6 +19,11 @@ const CONFIG = {
     { id:'trundle',name:'Trundle Bot',color:'#ec4899', emoji:'🎯', sprite:'assets/robots/BrownBot.png' },
   ],
   defaultMap: 'exchange', cellSize: 40,
+  availableMaps: [
+    { id: 'exchange', name: 'Exchange', file: 'assets/maps/exchange.json' },
+    // Aggiungi nuove mappe qui dopo averle create col Map Builder:
+    // { id: 'crossroads', name: 'Crossroads', file: 'assets/maps/crossroads.json' },
+  ],
   tileImages: {
     floor_a:'assets/tiles/pavement_A.png', floor_b:'assets/tiles/pavement_B.png',
     pit:'assets/tiles/hole.png', conveyor:'assets/tiles/beltForward1.png', express:'assets/tiles/beltForward2.png',
