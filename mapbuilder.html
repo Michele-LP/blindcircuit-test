@@ -163,7 +163,16 @@ const TOOLS = [
 
 const DIRS = ['N','E','S','W'];
 const DIR_ARROW = { N:'↑', E:'→', S:'↓', W:'←' };
-const DIR_ROT   = { N:-Math.PI/2, E:0, S:Math.PI/2, W:Math.PI };
+const DIR_ROT = { N:-Math.PI/2, E:0, S:Math.PI/2, W:Math.PI };
+
+// Se un'immagine PNG non punta verso Est di default, aggiungi l'offset qui.
+// Esempio: se spring_on.png spinge verso Ovest → offset = Math.PI (180°)
+const TILE_ROT_FIX = {
+  push_panel: Math.PI,   // ← prova con Math.PI, Math.PI/2, -Math.PI/2, 0
+  laser_src:  0,
+  conveyor:   0,
+  express:    0,
+};
 const VECS      = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
 
 const CELL_COLORS = {
@@ -597,7 +606,7 @@ const E = {
     if (tileKey) {
       const img = TILE_IMGS[tileKey];
       if (img?.complete && img.naturalWidth > 0) {
-        const rot = DIR_ROT[cell.dir ?? 'E'] ?? 0;
+        const rot = (DIR_ROT[cell.dir ?? 'E'] ?? 0) + (TILE_ROT_FIX[tileKey] ?? 0);
         ctx.save();
         ctx.translate(px+S/2, py+S/2);
         if (['conveyor','express_conveyor','push_panel'].includes(cell.type)) ctx.rotate(rot);
@@ -690,7 +699,7 @@ const E = {
     const S=this.cellSize, px=l.x*S, py=l.y*S;
     const img = TILE_IMGS['laser_src'];
     if (img?.complete && img.naturalWidth > 0) {
-      const rot = DIR_ROT[l.dir ?? 'E'] ?? 0;
+      const rot = (DIR_ROT[l.dir ?? 'E'] ?? 0) + (TILE_ROT_FIX['laser_src'] ?? 0);
       ctx.save(); ctx.translate(px+S/2, py+S/2); ctx.rotate(rot);
       ctx.drawImage(img, -S/2, -S/2, S, S); ctx.restore();
     } else {
