@@ -69,7 +69,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
    Percorso immagine: assets/img/Blind_Circuit.jpg
 */
 #scr-menu {
-  background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
+  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   min-height: 100vh;
   border-radius: 14px;
   justify-content: flex-end;
@@ -99,7 +99,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
    per lasciare intravedere l'immagine di sfondo.
 */
 #scr-lobby {
-  background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
+  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   min-height: 100vh;
   border-radius: 14px;
   position: relative;
@@ -358,7 +358,7 @@ canvas {
 
 /* ════ JOIN: sfondo immagine + card vetro ════ */
 #scr-join {
-  background: url('../assets/img/Blind_Circuit.png') center / cover no-repeat;
+  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   min-height: 100vh;
   border-radius: 14px;
   position: relative;
