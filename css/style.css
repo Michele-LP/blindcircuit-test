@@ -5,6 +5,7 @@
 body {
   font-family: system-ui, -apple-system, sans-serif;
   background: #0d1117;
+  background: url('../assets/img/Plancia.jpg') center / cover no-repeat;
   color: #e6edf3;
   min-height: 100vh;
   display: flex;
@@ -188,7 +189,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
   align-items: flex-start;
   width: 100%;
 
-  background: url('../assets/img/Plancia.jpg') center / cover no-repeat;
+
   padding: 12px;
   border-radius: 12px;
   box-shadow: 0 4px 28px rgba(0,0,0,0.55);
