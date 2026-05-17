@@ -238,7 +238,7 @@ const Game = (() => {
       const char=CONFIG.characters.find(c=>c.id===p.character);
       const col=char?.color??'#6b7280';
       const cx=rx+CELL/2,cy=ry+CELL/2,half=SZ/2;
-      ctx.save();ctx.fillStyle='rgba(0,0,0,0.4)';ctx.beginPath();ctx.ellipse(cx,cy+half+3,half-2,4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+      // v6.8.1: rimossa ombra (visuale dall'alto)
       const spr=char?_robotImgs[char.id]:null;
       if(spr&&spr.complete&&spr.naturalWidth>0){
         ctx.save();ctx.translate(cx,cy);ctx.rotate(angle+SPRITE_ROT_OFFSET);ctx.drawImage(spr,-half,-half,SZ,SZ);ctx.restore();
@@ -249,9 +249,10 @@ const Game = (() => {
         if(isMe){this._rrect(ctx,-half,-half,SZ,SZ,6);ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=2;ctx.stroke();}
         ctx.restore();
       }
+      // v6.8.1: solo nickname sopra il robot, energie spostate nell'HUD laterale
       ctx.fillStyle=isMe?'#e6edf3':'#9ca3af';
       ctx.font=`bold ${Math.max(9,Math.round(CELL*0.2))}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
-      ctx.fillText((p.nickname||'?').substring(0,8)+(p.energy!=null?` ⚡${p.energy}`:''),cx,ry-2);
+      ctx.fillText((p.nickname||'?').substring(0,8),cx,ry-2);
       const cps=p.checkpoints??[];
       if(cps.length){ctx.textBaseline='top';ctx.font=`${Math.round(CELL*0.2)}px system-ui`;ctx.fillText('★'.repeat(cps.length),cx,ry+SZ+3);}
     },
@@ -267,8 +268,11 @@ const Game = (() => {
         const wrap=document.createElement('div');wrap.className='hud-robot-wrap';wrap.style.cssText=`background:${color}22;border:1px solid ${color}55;`;
         wrap.appendChild(_makeRobotImg(char,'hud-robot-img'));
         const info=document.createElement('div');info.className='hud-info';
-        const nm=document.createElement('div');nm.className='hud-name';nm.textContent=(p.nickname||'?').substring(0,10)+(isMe?' (tu)':'');
-        const sub=document.createElement('div');sub.className='hud-sub';sub.id=`hud-sub-${p.id}`;sub.textContent=`⚡${p.energy??CONFIG.startingEnergy}`;
+        // v6.8.1: nome + energie/checkpoint in una sola riga compatta
+        const nm=document.createElement('div');nm.className='hud-name';nm.id=`hud-name-${p.id}`;
+        nm.textContent=(p.nickname||'?').substring(0,8)+(isMe?' (tu)':'');
+        const sub=document.createElement('div');sub.className='hud-sub';sub.id=`hud-sub-${p.id}`;
+        sub.textContent=`⚡${p.energy??CONFIG.startingEnergy}`;
         info.appendChild(nm);info.appendChild(sub);card.appendChild(wrap);card.appendChild(info);hud.appendChild(card);
       }
     },
