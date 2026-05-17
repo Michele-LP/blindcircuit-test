@@ -92,7 +92,10 @@ const Cards = {
     const me=State.myPlayer();if(!me||me.confirmed)return;
     if(me.registers.some(r=>r===null)){document.getElementById('prog-status').textContent='Riempi tutti i registri liberi.';return;}
     me.confirmed=true;
-    Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers});
+    // v6.9 FIX B1: invia deck e discard all'host perché possa simulare correttamente
+    // (senza questi dati, l'host parte con deck vuoto per i guest → carte perse)
+    Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers,
+      deck:[...(me.deck??[])], discard:[...(me.discard??[])]});
     document.getElementById('prog-status').textContent='✅ Confermato! In attesa…';
     document.getElementById('btn-confirm').disabled=true;
     // v6.9 G1: mostra pulsante annulla
@@ -105,7 +108,6 @@ const Cards = {
   // v6.9 G1: annulla conferma programmazione (finché non tutti hanno confermato)
   unconfirm(){
     const me=State.myPlayer();if(!me||!me.confirmed)return;
-    // Controlla che non tutti abbiano già confermato (esecuzione già partita)
     if(State.execAnimating)return;
     me.confirmed=false;
     Net.sendToAll({type:'UNCONFIRM'});
@@ -118,6 +120,13 @@ const Cards = {
 
   onGuestConfirmed(fromId,msg){
     this._confirmed[fromId]=msg.registers;
+    // v6.9 FIX B1: salva deck/discard del guest in State.players
+    // così Execution.compute() avrà i dati corretti per la simulazione
+    const gp=State.players[fromId];
+    if(gp){
+      if(msg.deck) gp.deck=msg.deck;
+      if(msg.discard) gp.discard=msg.discard;
+    }
     const me=State.myPlayer();if(me?.confirmed)this._confirmed[State.myId]=me.registers;
     if(State.getPlayerList().map(p=>p.id).every(id=>this._confirmed[id])){
       if(typeof Log!=='undefined')Log.add('Tutti pronti — esecuzione',{type:'event'});
