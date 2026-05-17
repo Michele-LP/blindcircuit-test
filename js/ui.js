@@ -11,7 +11,20 @@ const UI = {
       .forEach(s => s.classList.remove('active'));
     const el = document.getElementById('scr-' + id);
     if (el) el.classList.add('active');
-  },
+
+    // Swap video background: menu usa bg_loop_start, il resto bg_loop
+    const bgMain = document.getElementById('bg-video');
+    const bgMenu = document.getElementById('bg-video-menu');
+    if (bgMain && bgMenu) {
+      if (id === 'menu') {
+        bgMenu.style.display = 'block';
+        bgMain.style.display = 'none';
+      } else {
+        bgMenu.style.display = 'none';
+        bgMain.style.display = 'block';
+      }
+    }
+},
 
   // Imposta il testo e la classe di un elemento status
   setStatus(elId, msg, type = '') {
