@@ -10,8 +10,8 @@ const State = {
   phase: 'menu',
   board: null, round: 0, energyToken: null,
 
-  execMode:      'auto',
-  execSpeed:     2,
+  execMode:      'manual',
+  execSpeed:     1,
   execAdvance:   null,
   execAnimating: false,
 
@@ -50,8 +50,8 @@ const State = {
     this.board          = null;
     this.round          = 0;
     this.energyToken    = null;
-    this.execMode       = 'auto';
-    this.execSpeed      = 2;
+    this.execMode       = 'manual';
+    this.execSpeed      = 1;
     this.execAdvance    = null;
     this.execAnimating  = false;
     this.damageDeck     = [];
