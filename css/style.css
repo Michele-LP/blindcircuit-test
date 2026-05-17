@@ -89,7 +89,7 @@ h2        { font-size: 1.3rem; font-weight: 600; }
    Percorso immagine: assets/img/Blind_Circuit.jpg
 */
 #scr-menu {
-  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
+  /*background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;*/
   min-height: 100vh;
   border-radius: 14px;
   justify-content: flex-end;
