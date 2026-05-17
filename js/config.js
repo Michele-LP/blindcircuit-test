@@ -11,12 +11,12 @@ const CONFIG = {
   spamCardsOnFall: 2, spamOnDamage: 1, boardLaserStrength: 1, robotLaserStrength: 1,
   deckComposition: { move1:4, move2:3, move3:1, backUp:1, rotateRight:4, rotateLeft:4, uTurn:1, again:1, recharge:1 },
   characters: [
-    { id:'jax',   name:'Jax',     color:'#3b82f6', emoji:'🤖', sprite:'assets/robots/BlueBot.png' },  // id:'spin',   name:'Spin Bot',
-    { id:'gerry', name:'Gerry',   color:'#ef4444', emoji:'🦾', sprite:'assets/robots/RedBot.png' },   // id:'hammer', name:'Hammer Bot',
-    { id:'bolt',  name:'Bolt',    color:'#f59e0b', emoji:'⚡', sprite:'assets/robots/YellowBot.png' },// id:'zoom',   name:'Zoom Bot',
-    { id:'fritz', name:'Fritz',   color:'#10b981', emoji:'👾', sprite:'assets/robots/GreenBot.png' }, // id:'twonky', name:'Twonky',
-    { id:'pixel', name:'Pixel',   color:'#8b5cf6', emoji:'💪', sprite:'assets/robots/PurpleBot.png' },// id:'hulk',   name:'Hulk X90',
-    { id:'rusty', name:'Rusty',   color:'#ec4899', emoji:'🎯', sprite:'assets/robots/BrownBot.png' }, // id:'trundle',name:'Trundle Bot',
+    { id:'spin',   name:'Spin Bot',   color:'#3b82f6', emoji:'🤖', sprite:'assets/robots/BlueBot.png' },
+    { id:'hammer', name:'Hammer Bot', color:'#ef4444', emoji:'🦾', sprite:'assets/robots/RedBot.png' },
+    { id:'zoom',   name:'Zoom Bot',   color:'#f59e0b', emoji:'⚡', sprite:'assets/robots/YellowBot.png' },
+    { id:'twonky', name:'Twonky',     color:'#10b981', emoji:'👾', sprite:'assets/robots/GreenBot.png' },
+    { id:'hulk',   name:'Hulk X90',   color:'#8b5cf6', emoji:'💪', sprite:'assets/robots/PurpleBot.png' },
+    { id:'trundle',name:'Trundle Bot',color:'#ec4899', emoji:'🎯', sprite:'assets/robots/BrownBot.png' },
   ],
   defaultMap: 'factory_floor', cellSize: 40,
   availableMaps: [
@@ -48,6 +48,24 @@ const CONFIG = {
     { id:'spam',       name:'SPAM',         image:null, desc:'Esegue la prima carta non-SPAM dal mazzo' },
     { id:'worm',       name:'WORM',         image:null, desc:'Sequenza caotica nel registro' },
   ],
+
+  // ── Audio v6.8.2 ───────────────────────────────────────────────────────
+  audio: {
+    masterVolume: 0.6,
+    sfxVolume: 0.7,
+    bgVolume: 0.25,
+    bgMuted: false,
+    // true = attivo, false = disabilitato per singolo suono
+    sounds: {
+      robot_move:true, robot_rotate:true, robot_uturn:true,
+      push:true, piston:true, fall:true, land:true,
+      robot_laser:true, cell_laser:true,
+      gear:true, recharge:true, conveyor1:true, conveyor2:true,
+      damage:true, damage_fall:true, damage_laser:true,
+      round_start:true, wall_hit:true, checkpoint:true, victory:true,
+      card_play:true, confirm:true, energy:true, ui_click:true,
+    },
+  },
 };
 
 let RULES = {

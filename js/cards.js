@@ -74,6 +74,7 @@ const Cards = {
     Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers});
     document.getElementById('prog-status').textContent='✅ Confermato! In attesa…';
     document.getElementById('btn-confirm').disabled=true;
+    if(typeof Audio!=='undefined') Audio.play('confirm');
     this.render();this.updateOthersStatus();
   },
 

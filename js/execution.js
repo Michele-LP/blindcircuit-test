@@ -47,6 +47,11 @@ const Execution = (() => {
     const ch = p ? CONFIG.characters.find(c => c.id === p.character) : null;
     return { name: p?.nickname || '?', color: ch?.color || '#6b7280' };
   }
+  // v6.8.2: ritorna l'ID personaggio per suoni robot-specifici
+  function _charId(id) {
+    const p = State.players[id];
+    return p?.character ?? null;
+  }
 
   // ── Danno condiviso ──────────────────────────────────────────────────────
   function drawDamage(simShared, simPlayer, regIndex) {
@@ -138,7 +143,10 @@ const Execution = (() => {
   function moveSteps(sim, id, steps) {
     const s = sim[id], dir = steps > 0 ? s.dir : OPP[s.dir], v = VECS[dir], actions = [];
     for (let i = 0; i < Math.abs(steps); i++) {
-      if (wallBlocks(s.cx, s.cy, dir)) break;
+      if (wallBlocks(s.cx, s.cy, dir)) {
+        actions.push({ type:'wall_hit', id, cx:s.cx, cy:s.cy, dir });  // v6.8.2: suono muro
+        break;
+      }
       const nx = s.cx+v[0], ny = s.cy+v[1];
       // Fuori bordo
       if (!Board.inBounds(nx, ny)) {
@@ -158,7 +166,11 @@ const Execution = (() => {
       }
       // Collisione push
       const blocker = Object.values(sim).find(o => o.id !== id && o.cx === nx && o.cy === ny);
-      if (blocker) { const pa=[]; if (!tryPush(sim,blocker.id,dir,pa)) break; actions.push(...pa); }
+      if (blocker) {
+        const pa=[]; if (!tryPush(sim,blocker.id,dir,pa)) { actions.push({type:'wall_hit',id,cx:s.cx,cy:s.cy,dir}); break; }
+        actions.push({type:'push',id,targetId:blocker.id,dir}); // v6.8.2
+        actions.push(...pa);
+      }
       s.cx=nx; s.cy=ny;
       actions.push({type:'move',id,cx:nx,cy:ny});
     }
@@ -367,21 +379,30 @@ const Execution = (() => {
     return [...all.slice(from),...all.slice(0,from)].map(p=>p.id);
   }
 
-  // ── applyAction — aggiorna stato + scrive nel Log ────────────────────────
+  // ── applyAction — aggiorna stato + scrive nel Log + trigger audio ───────
   function applyAction(a) {
     if (a.type==='damage_deck_sync'){State.damageDeck=a.damageDeck;State.damageDiscard=a.damageDiscard;return;}
     if (a.type==='phase_marker'){
       if(typeof Log!=='undefined')Log.add(`— ${a.name} —`,{type:'info'});
+      // v6.8.2: suoni per fasi specifiche
+      if(typeof Audio!=='undefined'){
+        const n=a.name?.toLowerCase()??'';
+        if(n.includes('nastri express')||n.includes('express')) Audio.play('conveyor2');
+        else if(n.includes('nastri')) Audio.play('conveyor1');
+        else if(n.includes('ingranaggi')) Audio.play('gear');
+        else if(n.includes('laser tabellone')||n.includes('laser board')) Audio.play('cell_laser');
+        else if(n.includes('laser robot')) Audio.play('robot_laser');
+        else if(n.includes('push panel')||n.includes('pistoni')) Audio.play('piston');
+      }
       return;
     }
     if (a.type==='card_played'){
       const i=_playerInfo(a.id);
       const prefix=a.isWorm?'🦠 ':'';
       if(typeof Log!=='undefined')Log.add(`${i.name}: ${prefix}${a.cardName}`,{color:i.color});
+      if(typeof Audio!=='undefined') Audio.play('card_play');
       return;
     }
-    // NEW v6.7.1: raggio laser visivo → aggiunto a State._activeBeams
-    // game.js lo legge nel render loop e lo disegna come linea sfumante.
     if (a.type==='laser_beam'){
       if(!State._activeBeams) State._activeBeams=[];
       State._activeBeams.push({
@@ -390,6 +411,21 @@ const Execution = (() => {
         color:a.color,
         t:performance.now(),
       });
+      if(typeof Audio!=='undefined'){
+        Audio.play(a.source==='robot'?'robot_laser':'cell_laser',{robotId:_charId(a.shooterId)});
+      }
+      return;
+    }
+
+    // v6.8.2: azioni senza stato (solo suono)
+    if (a.type==='wall_hit'){
+      if(typeof Audio!=='undefined') Audio.play('wall_hit');
+      const i=_playerInfo(a.id);
+      if(typeof Log!=='undefined')Log.add(`${i.name}: bloccato dal muro`,{color:i.color,type:'info'});
+      return;
+    }
+    if (a.type==='push'){
+      if(typeof Audio!=='undefined') Audio.play('push');
       return;
     }
 
@@ -398,21 +434,24 @@ const Execution = (() => {
 
     case 'move':
       p.cx=a.cx;p.cy=a.cy;
+      if(typeof Audio!=='undefined') Audio.play('robot_move',{robotId:_charId(a.id)});
       break;
 
     case 'rotate': {
       p.dir=a.dir;
       const dirs={N:'↑N',E:'→E',S:'↓S',W:'←O'};
       if(typeof Log!=='undefined'){const i=_playerInfo(a.id);Log.add(`${i.name}: ruota ${dirs[a.dir]??a.dir}`,{color:i.color});}
+      if(typeof Audio!=='undefined') Audio.play('robot_rotate',{robotId:_charId(a.id)});
       break;
     }
 
     case 'fall':
       p.cx=a.respawnCx;p.cy=a.respawnCy;
-      p._snapAnim=true;   // game.js: teletrasporto istantaneo, no lerp
+      p._snapAnim=true;
       {const i=_playerInfo(a.id);
        if(typeof Log!=='undefined')Log.add(`${i.name}: caduto nel buco — respawn`,{color:i.color,type:'damage'});
        if(typeof Toast!=='undefined')Toast.show(`💥 ${i.name} cade nel buco!`,{color:i.color});}
+      if(typeof Audio!=='undefined'){ Audio.play('fall'); setTimeout(()=>Audio.play('land'),500); }
       break;
 
     case 'checkpoint':
@@ -422,12 +461,14 @@ const Execution = (() => {
       {const i=_playerInfo(a.id);
        if(typeof Log!=='undefined')Log.add(`${i.name}: checkpoint ${a.order}!`,{color:i.color,type:'event'});
        if(typeof Toast!=='undefined')Toast.show(`⭐ ${i.name} → checkpoint ${a.order}`,{color:i.color});}
+      if(typeof Audio!=='undefined') Audio.play('checkpoint');
       break;
 
     case 'energy':
       p.energy=a.energy;
       {const i=_playerInfo(a.id);
        if(typeof Log!=='undefined')Log.add(`${i.name}: ⚡${a.energy}`,{color:i.color});}
+      if(typeof Audio!=='undefined') Audio.play('energy');
       break;
 
     case 'damage': {
@@ -444,6 +485,11 @@ const Execution = (() => {
         const m=`${i.name}: colpito (${src}) → WORM ${wd?.name??a.card} in P${a.regIndex+1}`;
         if(typeof Log!=='undefined')Log.add(m,{color:i.color,type:'damage'});
         if(typeof Toast!=='undefined')Toast.show(`🦠 ${m}`,{color:i.color,duration:4000});
+      }
+      // v6.8.2: suono danno specifico per fonte
+      if(typeof Audio!=='undefined'){
+        if(a.source==='robot_laser'||a.source==='board_laser') Audio.play('damage_laser');
+        else Audio.play('damage');
       }
       break;
     }
@@ -469,6 +515,7 @@ const Execution = (() => {
       const i=_playerInfo(winner);
       if(typeof Log!=='undefined')Log.add(`🏆 VITTORIA di ${i.name}!`,{color:i.color,type:'event'});
       if(typeof Toast!=='undefined')Toast.show(`🏆 ${i.name} ha vinto!`,{color:i.color,duration:8000});
+      if(typeof Audio!=='undefined'){ Audio.play('victory'); Audio.stopBg(); }
       if(typeof Game?.stopTimer==='function')Game.stopTimer();
       document.getElementById('win-player').textContent=i.name;
       UI.show('win'); return;

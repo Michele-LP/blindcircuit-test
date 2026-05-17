@@ -12,6 +12,15 @@ body {
   align-items: flex-start;
   justify-content: center;
 }
+#bg-video {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  object-fit: cover;
+  z-index: -1;
+  opacity: 0.2;       /* regola a piacere */
+  pointer-events: none;
+}
 
 /* ════════════════════════════════════════ SCREENS */
 .screen { display: none; flex-direction: column; align-items: center; gap: 20px; width: 100%; /*max-width: 720px; */}
@@ -247,6 +256,22 @@ canvas {
   gap: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+}
+
+/* v6.8.2: Controlli audio */
+.audio-controls { display: flex; align-items: center; gap: 3px; }
+.audio-toggle { font-size: 0.75rem; padding: 1px 3px; cursor: pointer; }
+.vol-slider { width: 42px; height: 3px; accent-color: #1f6feb; cursor: pointer; -webkit-appearance: none; appearance: none; background: #30363d; border-radius: 2px; outline: none; }
+.vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+.vol-slider::-moz-range-thumb { width: 8px; height: 8px; border-radius: 50%; background: #58a6ff; border: none; cursor: pointer; }
+
+/* v6.8.2: Video/GIF background */
+.canvas-wrapper { position: relative; flex-shrink: 0; overflow: hidden; }
+canvas {
+  display: block;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
 }
 
 /* Round info */

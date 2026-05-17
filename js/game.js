@@ -69,6 +69,7 @@ const Game = (() => {
   }
   window.addEventListener('resize', _onResize);
 
+
   function preloadRobotSprites() {
     for (const c of CONFIG.characters) { if (!c.sprite||_robotImgs[c.id])continue; const i=new Image();i.src=c.sprite;_robotImgs[c.id]=i; }
   }
@@ -143,6 +144,9 @@ const Game = (() => {
 
       if(typeof Log!=='undefined'){Log.clear();Log.add('Partita iniziata',{type:'event'});}
       _startTimer();
+      // v6.8.2: avvia sistema audio e musica background
+      if(typeof Audio!=='undefined'){ Audio.init(); Audio.startBg(); }
+
 
       setPanels(false,false); Cards.preload(); UI.show('game');
       requestAnimationFrame(()=>this._loop());
@@ -287,7 +291,10 @@ const Game = (() => {
       }
     },
 
-    enterProgramming(){setPanels(true,false);this.showAdvanceButton(false,false);},
+    enterProgramming(){
+      setPanels(true,false);this.showAdvanceButton(false,false);
+      if(typeof Audio!=='undefined') Audio.play('round_start');
+    },
     showExecPanel(registers){
       // v6.8.1: pulisci icone conferma dall'HUD
       document.querySelectorAll('.hud-conf').forEach(e=>e.textContent='');
