@@ -414,7 +414,6 @@ canvas {
 
 /* ════ JOIN: sfondo immagine + card vetro ════ */
 #scr-join {
-  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   min-height: 100vh;
   border-radius: 14px;
   position: relative;
