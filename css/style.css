@@ -18,7 +18,7 @@ body {
   width: 100vw; height: 100vh;
   object-fit: cover;
   z-index: -1;
-  opacity: 0.2;       /* regola a piacere */
+  opacity: 1;
   pointer-events: none;
 }
 #bg-video-menu {
@@ -89,7 +89,6 @@ h2        { font-size: 1.3rem; font-weight: 600; }
    Percorso immagine: assets/img/Blind_Circuit.jpg
 */
 #scr-menu {
-  background: url('../assets/img/Blind_Circuit.jpg') center / cover no-repeat;
   min-height: 100vh;
   border-radius: 14px;
   justify-content: flex-end;
