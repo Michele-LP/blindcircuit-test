@@ -191,6 +191,7 @@ const Execution = (() => {
   function applyConveyors(sim, beltType) {
     const actions=[];
     const onBelt = Object.values(sim).filter(s => {
+      if (s.rebooting) return false;   // v6.9: skip robot in reboot
       const ct = Board._cellAt(s.cx, s.cy)?.type;
       return ct && _isBeltOfType(ct, beltType);
     });
@@ -223,38 +224,44 @@ const Execution = (() => {
         intended.set(id, null);
     }
 
+    // v6.9 FIX B3: rotazione PRIMA del movimento per nastri curvi (regole RoboRally)
+    // Prima applichiamo le rotazioni (solo stato + azione), poi i movimenti.
+    const rotateActions = [];
+    for (const [id, ti] of turnInfo) {
+      if (!intended.get(id)) continue; // non si è mosso → niente rotazione
+      const s = sim[id];
+      const isRight = ROT_R[ti.from] === ti.to;
+      s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
+      rotateActions.push({ type: 'rotate', id, dir: s.dir });
+    }
+
     // Applica movimenti
+    const moveActions = [];
     for (const [id, m] of intended) {
       if (!m) continue;
       const s = sim[id];
       if (Board.cellType(m.nx, m.ny) === 'pit') {
-        s.cx = m.nx; s.cy = m.ny; actions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
+        s.cx = m.nx; s.cy = m.ny; moveActions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
         const rp = respawnPos(s); s.cx = rp.cx; s.cy = rp.cy;
         for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
-        actions.push({ type: 'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy });
+        moveActions.push({ type: 'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy });
         s.rebooting = true;
       } else {
         s.cx = m.nx; s.cy = m.ny;
-        actions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
+        moveActions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
       }
     }
 
-    // NEW v6.8: rotazione per i robot che erano su curve e si sono effettivamente mossi
-    // from = direzione di viaggio in entrata, to = direzione dopo la curva
-    for (const [id, ti] of turnInfo) {
-      if (!intended.get(id)) continue; // non si è mosso → niente rotazione
-      const s = sim[id];
-      if (s.rebooting) continue;       // caduto → niente rotazione
-      const isRight = ROT_R[ti.from] === ti.to;
-      s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
-      actions.push({ type: 'rotate', id, dir: s.dir });
-    }
+    // Rotazioni prima, movimenti dopo — i robot caduti non ruotano
+    // (rebooting settato durante i movimenti, ma la rotazione era già stata calcolata)
+    actions.push(...rotateActions.filter(ra => !sim[ra.id]?.rebooting), ...moveActions);
 
     return actions;
   }
   function applyPushPanels(sim,regIndex){
     const a=[];
     for (const s of Object.values(sim)){
+      if (s.rebooting) continue;   // v6.9: skip robot in reboot
       const c=Board._cellAt(s.cx,s.cy);
       if (!c||c.type!=='push_panel') continue;
       if (!(c.activeRegisters??[]).includes(regIndex+1)) continue;
@@ -264,6 +271,7 @@ const Execution = (() => {
   function applyGears(sim){
     const a=[];
     for (const s of Object.values(sim)){
+      if (s.rebooting) continue;   // v6.9: skip robot in reboot
       const c=Board._cellAt(s.cx,s.cy); if (!c) continue;
       if (c.type==='gear_cw') {s.dir=rotRight(s.dir);a.push({type:'rotate',id:s.id,dir:s.dir});}
       if (c.type==='gear_ccw'){s.dir=rotLeft(s.dir); a.push({type:'rotate',id:s.id,dir:s.dir});}
@@ -298,7 +306,7 @@ const Execution = (() => {
 
       while (Board.inBounds(lx,ly)){
         endX=lx; endY=ly;
-        const hit=Object.values(sim).find(s=>s.cx===lx&&s.cy===ly);
+        const hit=Object.values(sim).find(s=>!s.rebooting&&s.cx===lx&&s.cy===ly);  // v6.9: skip rebooting
         if (hit){ hitPlayer=hit; break; }
         if (wallBlocks(lx,ly,L.dir)) break;
         lx+=v[0]; ly+=v[1];
@@ -329,6 +337,7 @@ const Execution = (() => {
     const str=(typeof RULES!=='undefined'?RULES?.lasers?.robotLaserStrength:null)??CONFIG.robotLaserStrength??1;
     for (const id of turnOrder()){
       const sh=sim[id]; if(!sh)continue;
+      if (sh.rebooting) continue;   // v6.9: robot in reboot non spara
 
       // Muro blocca il laser del robot in partenza
       if(wallBlocks(sh.cx,sh.cy,sh.dir))continue;
@@ -340,7 +349,7 @@ const Execution = (() => {
 
       while(Board.inBounds(lx,ly)){
         endX=lx; endY=ly;    // il raggio arriva almeno qui
-        const hit=Object.values(sim).find(s=>s.id!==id&&s.cx===lx&&s.cy===ly);
+        const hit=Object.values(sim).find(s=>s.id!==id&&!s.rebooting&&s.cx===lx&&s.cy===ly);  // v6.9: skip rebooting
         if(hit){ hitPlayer=hit; break; }
         if(wallBlocks(lx,ly,sh.dir)) break;   // muro blocca uscita → raggio si ferma qui
         lx+=v[0]; ly+=v[1];
@@ -448,6 +457,7 @@ const Execution = (() => {
     case 'fall':
       p.cx=a.respawnCx;p.cy=a.respawnCy;
       p._snapAnim=true;
+      p.rebooting=true;   // v6.9 B5: robot sparisce dalla mappa fino al prossimo round
       {const i=_playerInfo(a.id);
        if(typeof Log!=='undefined')Log.add(`${i.name}: caduto nel buco — respawn`,{color:i.color,type:'damage'});
        if(typeof Toast!=='undefined')Toast.show(`💥 ${i.name} cade nel buco!`,{color:i.color});}
@@ -525,7 +535,13 @@ const Execution = (() => {
       State.energyToken=pls[(idx+1)%pls.length]?.id??State.energyToken;
       State.round++;
       const ws={}; for(const p of pls) ws[p.id]=p.wormSlots??{};
-      setTimeout(()=>{Net.sendToAll({type:'ROUND_START',round:State.round,timerSec:0,wormSlots:ws});},800);
+      // v6.9 B1: include deck/discard di ogni giocatore per garantire sync guest
+      const decks={}; for(const p of pls) decks[p.id]={deck:[...(p.deck??[])],discard:[...(p.discard??[])]};
+      // v6.9 B5: resetta il flag rebooting per il prossimo round
+      for(const p of pls) p.rebooting=false;
+      setTimeout(()=>{Net.sendToAll({type:'ROUND_START',round:State.round,timerSec:0,wormSlots:ws,
+        decks,damageDeck:[...State.damageDeck],damageDiscard:[...State.damageDiscard],
+        energyToken:State.energyToken});},800);
     }
   }
 
@@ -603,12 +619,14 @@ const Execution = (() => {
         // ── Batterie + Checkpoint ────────────────────────────────────────
         for (const id of order){
           const s=sim[id];
+          if (s.rebooting) continue;   // v6.9: skip robot in reboot
           if(Board.cellType(s.cx,s.cy)==='recharge'){
             s.energy=Math.min((s.energy??0)+CONFIG.rechargeAmount,CONFIG.maxEnergy);
             ra.push({type:'energy',id,energy:s.energy});
           }
         }
         for (const id of order){
+          if (sim[id].rebooting) continue;   // v6.9: skip robot in reboot
           const cp=checkCheckpoint(sim[id]);
           if(!cp) continue; ra.push(cp);
           if(cp.won) winner=id;

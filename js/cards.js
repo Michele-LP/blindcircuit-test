@@ -22,10 +22,31 @@ const Cards = {
 
   startRound(msg){
     const me=State.myPlayer();if(!me)return;
+
+    // v6.9 B1: cancella animazione in corso (potrebbe non aver finito il deck_sync)
+    if(State.execAnimating){
+      State.execAnimating=false; State.execAdvance=null;
+      if(typeof Game!=='undefined'){Game.showAdvanceButton(false,false);Game.hideExecPanel();}
+    }
+
+    // v6.9 B1: applica deck/discard autorevoli dall'host per ogni giocatore
+    if(msg.decks){
+      for(const[id,d]of Object.entries(msg.decks)){
+        const p=State.players[id]; if(!p)continue;
+        p.deck=d.deck; p.discard=d.discard;
+      }
+    }
+    // v6.9 B1: sync mazzo danno condiviso
+    if(msg.damageDeck!==undefined) State.damageDeck=msg.damageDeck;
+    if(msg.damageDiscard!==undefined) State.damageDiscard=msg.damageDiscard;
+    // v6.9: sync energy token
+    if(msg.energyToken!==undefined) State.energyToken=msg.energyToken;
+
     if(!me.deck)this._initPlayerCards(me);
     if(msg.wormSlots){for(const[id,sl]of Object.entries(msg.wormSlots))if(State.players[id])State.players[id].wormSlots=sl;}
     if(!me.wormSlots)me.wormSlots={};
-    for(const p of Object.values(State.players))p.confirmed=false;
+    // v6.9 B5: resetta rebooting per tutti i giocatori a inizio round
+    for(const p of Object.values(State.players)){p.confirmed=false;p.rebooting=false;}
     me.discard.push(...me.hand);me.hand=[];me.confirmed=false;
     if(State.isHost)this._confirmed={};
     me.registers=Array.from({length:CONFIG.registersCount},(_,i)=>me.wormSlots[i]??null);
@@ -74,7 +95,24 @@ const Cards = {
     Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers});
     document.getElementById('prog-status').textContent='✅ Confermato! In attesa…';
     document.getElementById('btn-confirm').disabled=true;
+    // v6.9 G1: mostra pulsante annulla
+    const ua=document.getElementById('btn-unconfirm');
+    if(ua)ua.style.display='inline-flex';
     if(typeof Audio!=='undefined') Audio.play('confirm');
+    this.render();this.updateOthersStatus();
+  },
+
+  // v6.9 G1: annulla conferma programmazione (finché non tutti hanno confermato)
+  unconfirm(){
+    const me=State.myPlayer();if(!me||!me.confirmed)return;
+    // Controlla che non tutti abbiano già confermato (esecuzione già partita)
+    if(State.execAnimating)return;
+    me.confirmed=false;
+    Net.sendToAll({type:'UNCONFIRM'});
+    document.getElementById('prog-status').textContent='Conferma annullata — modifica i registri';
+    document.getElementById('btn-confirm').disabled=false;
+    const ua=document.getElementById('btn-unconfirm');
+    if(ua)ua.style.display='none';
     this.render();this.updateOthersStatus();
   },
 
@@ -85,6 +123,11 @@ const Cards = {
       if(typeof Log!=='undefined')Log.add('Tutti pronti — esecuzione',{type:'event'});
       Execution.compute(this._confirmed);
     }
+  },
+
+  // v6.9 G1: gestisce annullamento conferma da parte di un guest
+  onGuestUnconfirmed(fromId){
+    delete this._confirmed[fromId];
   },
 
   updateOthersStatus(){
@@ -149,6 +192,9 @@ const Cards = {
   _updateConfirmBtn(me){
     me=me??State.myPlayer();const btn=document.getElementById('btn-confirm');if(!btn||!me)return;
     const filled=me.registers.filter(Boolean).length;btn.disabled=filled<CONFIG.registersCount||me.confirmed;
+    // v6.9 G1: gestisci visibilità pulsante annulla
+    const ua=document.getElementById('btn-unconfirm');
+    if(ua) ua.style.display=me.confirmed?'inline-flex':'none';
     const st=document.getElementById('prog-status');if(st&&!me.confirmed){
       const wc=Object.values(me.wormSlots??{}).filter(Boolean).length,free=CONFIG.registersCount-wc,done=me.registers.filter(r=>r&&!r.startsWith?.('worm_')).length;
       st.textContent=done<free?`Registri: ${done}/${free}${wc>0?' ('+wc+' WORM)':''}` :'Pronti! Conferma per continuare.';
@@ -159,6 +205,7 @@ const Cards = {
     switch(msg.type){
       case'ROUND_START':this.startRound(msg);break;
       case'PROGRAM_REGISTERS':if(State.isHost)this.onGuestConfirmed(fromId,msg);if(State.players[fromId])State.players[fromId].confirmed=true;this.updateOthersStatus();break;
+      case'UNCONFIRM':if(State.isHost)this.onGuestUnconfirmed(fromId);if(State.players[fromId])State.players[fromId].confirmed=false;this.updateOthersStatus();break;
       case'EXECUTE_PLAN':if(!State.isHost)Execution.receive(msg);break;
     }
   },

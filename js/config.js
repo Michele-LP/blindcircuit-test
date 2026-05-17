@@ -11,12 +11,12 @@ const CONFIG = {
   spamCardsOnFall: 2, spamOnDamage: 1, boardLaserStrength: 1, robotLaserStrength: 1,
   deckComposition: { move1:4, move2:3, move3:1, backUp:1, rotateRight:4, rotateLeft:4, uTurn:1, again:1, recharge:1 },
   characters: [
-    { id:'jax',   name:'Jax',   color:'#3b82f6', emoji:'🤖', sprite:'assets/robots/BlueBot.png' },
-    { id:'gerry', name:'Gerry', color:'#ef4444', emoji:'🦾', sprite:'assets/robots/RedBot.png' },
-    { id:'bolt',   name:'Bolt',   color:'#f59e0b', emoji:'⚡', sprite:'assets/robots/YellowBot.png' },
-    { id:'fritz', name:'Fritz',     color:'#10b981', emoji:'👾', sprite:'assets/robots/GreenBot.png' },
-    { id:'pixie',   name:'Pixie',   color:'#8b5cf6', emoji:'💪', sprite:'assets/robots/PurpleBot.png' },
-    { id:'rusty',name:'Rusty',color:'#996600', emoji:'🎯', sprite:'assets/robots/BrownBot.png' },
+    { id:'spin',   name:'Spin Bot',   color:'#3b82f6', emoji:'🤖', sprite:'assets/robots/BlueBot.png' },
+    { id:'hammer', name:'Hammer Bot', color:'#ef4444', emoji:'🦾', sprite:'assets/robots/RedBot.png' },
+    { id:'zoom',   name:'Zoom Bot',   color:'#f59e0b', emoji:'⚡', sprite:'assets/robots/YellowBot.png' },
+    { id:'twonky', name:'Twonky',     color:'#10b981', emoji:'👾', sprite:'assets/robots/GreenBot.png' },
+    { id:'hulk',   name:'Hulk X90',   color:'#8b5cf6', emoji:'💪', sprite:'assets/robots/PurpleBot.png' },
+    { id:'trundle',name:'Trundle Bot',color:'#ec4899', emoji:'🎯', sprite:'assets/robots/BrownBot.png' },
   ],
   defaultMap: 'factory_floor', cellSize: 40,
   availableMaps: [

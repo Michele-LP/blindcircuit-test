@@ -193,6 +193,7 @@ const Game = (() => {
       Board.render(ctx);
       for (const p of Object.values(State.players)) {
         if(p.cx===undefined)continue;
+        if(p.rebooting) continue;   // v6.9 B5: robot in reboot non visibile sulla mappa
         const a=anim[p.id]; if(a)this._drawRobot(p,a.renderX,a.renderY,a.renderAngle);
       }
       this._drawBeams();

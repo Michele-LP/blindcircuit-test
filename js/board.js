@@ -198,10 +198,20 @@ const Board = {
           this._drawRecharge(ctx, px, py, S);
         break;
 
-      case 'push_panel':
-        if (!this._drawTilePNG(ctx, 'push_panel', px, py, S, rot))
+      case 'push_panel': {
+        // v6.9 B4: il PNG spring_on punta verso W (←), aggiungi +π per allinearlo al sistema _DIR_ROT (che assume Est)
+        const pushRot = (this._DIR_ROT[cell.dir ?? 'E'] ?? 0) + Math.PI;
+        if (!this._drawTilePNG(ctx, 'push_panel', px, py, S, pushRot))
           this._drawPushPanel(ctx, px, py, S, cell.dir);
+        // v6.9 G4: overlay registri attivi del push panel
+        if (cell.activeRegisters && cell.activeRegisters.length) {
+          ctx.fillStyle = 'rgba(59,130,246,0.75)';
+          ctx.font = `bold ${Math.max(8,Math.round(S*0.2))}px system-ui`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText(cell.activeRegisters.map(r=>'P'+r).join(','), px+S/2, py+S-2);
+        }
         break;
+      }
 
       // NEW v6.8: nastri trasportatori curvi
       case 'conveyor_turn': {
