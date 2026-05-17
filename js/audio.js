@@ -18,7 +18,6 @@ const Audio = (() => {
   let _master = null;       // GainNode: master
   let _sfxGain = null;      // GainNode: effetti
   let _bgGain = null;       // GainNode: musica background
-  let _bgNodes = [];        // nodi musica attivi
   let _bgPlaying = false;
   let _initialized = false;
 
@@ -270,45 +269,28 @@ const Audio = (() => {
   //  BACKGROUND MUSIC — drone ambientale procedurale
   // ═══════════════════════════════════════════════════════════════════════
 
+  let _bgAudio = null;
+
   function _startBg() {
-    if (_bgPlaying || !_ctx) return;
-    _bgPlaying = true;
-    // Drone base: 2 oscillatori detuned + LFO tremolo
-    const t = _ctx.currentTime;
-
-    const o1 = _ctx.createOscillator();
-    o1.type = 'sine'; o1.frequency.value = 55;
-    const o2 = _ctx.createOscillator();
-    o2.type = 'triangle'; o2.frequency.value = 55.3; // leggero detune
-    const o3 = _ctx.createOscillator();
-    o3.type = 'sine'; o3.frequency.value = 82.5; // quinta
-
-    // LFO per tremolo leggero
-    const lfo = _ctx.createOscillator();
-    lfo.type = 'sine'; lfo.frequency.value = 0.15;
-    const lfoGain = _ctx.createGain();
-    lfoGain.gain.value = 0.15;
-    lfo.connect(lfoGain);
-
-    const mix = _ctx.createGain();
-    mix.gain.value = 0.12;
-    lfoGain.connect(mix.gain);
-
-    // Filtro low-pass per ammorbidire
-    const lp = _ctx.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 200; lp.Q.value = 1;
-
-    o1.connect(lp); o2.connect(lp); o3.connect(lp);
-    lp.connect(mix); mix.connect(_bgGain);
-
-    [o1, o2, o3, lfo].forEach(o => o.start(t));
-    _bgNodes = [o1, o2, o3, lfo, lfoGain, mix, lp];
+      if (_bgPlaying) return;
+      _bgPlaying = true;
+      _bgAudio = new window.Audio('assets/audio/bg_music.mp3');
+      _bgAudio.loop = true;
+      _bgAudio.volume = _bgMuted ? 0 : _bgVol;
+      _bgAudio.play().catch(() => {
+        // File non trovato o errore → silenzio, nessun fallback
+        _bgAudio = null;
+        _bgPlaying = false;
+      });
   }
 
   function _stopBg() {
-    _bgNodes.forEach(n => { try { if (n.stop) n.stop(); n.disconnect(); } catch (_) {} });
-    _bgNodes = [];
-    _bgPlaying = false;
+      if (_bgAudio) {
+        _bgAudio.pause();
+        _bgAudio.currentTime = 0;
+        _bgAudio = null;
+      }
+      _bgPlaying = false;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -376,14 +358,14 @@ const Audio = (() => {
     /** Volume musica (0–1) */
     setBgVolume(v) {
       _bgVol = Math.max(0, Math.min(1, v));
-      if (_bgGain && !_bgMuted) _bgGain.gain.value = _bgVol;
+      if (_bgAudio) _bgAudio.volume = _bgMuted ? 0 : _bgVol;
     },
     getBgVolume() { return _bgVol; },
 
     /** Toggle mute musica */
     toggleBg() {
       _bgMuted = !_bgMuted;
-      if (_bgGain) _bgGain.gain.value = _bgMuted ? 0 : _bgVol;
+      if (_bgAudio) _bgAudio.volume = _bgMuted ? 0 : _bgVol;
       return !_bgMuted;
     },
     isBgMuted() { return _bgMuted; },
