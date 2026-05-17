@@ -149,6 +149,10 @@ const Game = (() => {
 
 
       setPanels(false,false); Cards.preload(); UI.show('game');
+      // v6.9 U1: tooltip cella al passaggio mouse
+      this._initCanvasTooltip();
+      // v6.9 U2: zoom mappa con scroll
+      this._initZoom();
       requestAnimationFrame(()=>this._loop());
 
       // Solo l'host inizia il primo round (lo spettatore non fa nulla)
@@ -243,7 +247,6 @@ const Game = (() => {
       const char=CONFIG.characters.find(c=>c.id===p.character);
       const col=char?.color??'#6b7280';
       const cx=rx+CELL/2,cy=ry+CELL/2,half=SZ/2;
-      // v6.8.1: rimossa ombra (visuale dall'alto)
       const spr=char?_robotImgs[char.id]:null;
       if(spr&&spr.complete&&spr.naturalWidth>0){
         ctx.save();ctx.translate(cx,cy);ctx.rotate(angle+SPRITE_ROT_OFFSET);ctx.drawImage(spr,-half,-half,SZ,SZ);ctx.restore();
@@ -252,6 +255,15 @@ const Game = (() => {
         ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);this._rrect(ctx,-half,-half,SZ,SZ,6);ctx.fillStyle=col;ctx.fill();
         ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.moveTo(0,-half+4);ctx.lineTo(-6,-half+14);ctx.lineTo(6,-half+14);ctx.closePath();ctx.fill();
         if(isMe){this._rrect(ctx,-half,-half,SZ,SZ,6);ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=2;ctx.stroke();}
+        ctx.restore();
+      }
+      // v6.9 U3: freccia direzione — triangolino davanti al robot
+      {
+        const arrSz=Math.max(4,CELL*0.16);
+        ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle);
+        ctx.beginPath(); ctx.moveTo(half+arrSz*0.4,0); ctx.lineTo(half-arrSz*0.5,-arrSz*0.55); ctx.lineTo(half-arrSz*0.5,arrSz*0.55); ctx.closePath();
+        ctx.fillStyle=col; ctx.globalAlpha=0.85; ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=0.8; ctx.stroke();
         ctx.restore();
       }
       // v6.8.1: solo nickname sopra il robot, energie spostate nell'HUD laterale
@@ -329,6 +341,70 @@ const Game = (() => {
     },
     hideExecPanel(){setPanels(false,false);this.showAdvanceButton(false,false);},
     showAdvanceButton(v,en=true){const b=document.getElementById('btn-advance');if(b){b.style.display=v?'inline-flex':'none';b.disabled=!en;}},
+
+    // v6.9 U1: tooltip cella al passaggio mouse sul canvas
+    _initCanvasTooltip(){
+      let _tipEl=document.getElementById('canvas-cell-tooltip');
+      if(!_tipEl){_tipEl=document.createElement('div');_tipEl.id='canvas-cell-tooltip';_tipEl.className='canvas-tooltip';document.body.appendChild(_tipEl);}
+      let _lastKey='';
+      canvas.addEventListener('mousemove',(e)=>{
+        const rect=canvas.getBoundingClientRect();
+        const scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+        const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
+        const cellX=Math.floor(mx/CELL), cellY=Math.floor(my/CELL);
+        const key=`${cellX},${cellY}`;
+        if(key===_lastKey&&_tipEl.style.display==='block'){{_tipEl.style.left=(e.clientX+14)+'px';_tipEl.style.top=(e.clientY+14)+'px';}return;}
+        _lastKey=key;
+        if(!Board.inBounds(cellX,cellY)){_tipEl.style.display='none';return;}
+        const desc=Board.cellDescription(cellX,cellY);
+        if(!desc){_tipEl.style.display='none';return;}
+        _tipEl.textContent=desc;_tipEl.style.display='block';
+        _tipEl.style.left=(e.clientX+14)+'px';_tipEl.style.top=(e.clientY+14)+'px';
+      });
+      canvas.addEventListener('mouseleave',()=>{_tipEl.style.display='none';_lastKey='';});
+    },
+
+    // v6.9 U2: zoom mappa con scroll/pinch
+    _initZoom(){
+      const wrapper=canvas.parentElement; if(!wrapper)return;
+      let _scale=1, _panX=0, _panY=0, _dragging=false, _dragStart={x:0,y:0};
+      const MIN_ZOOM=0.5, MAX_ZOOM=3;
+      const _apply=()=>{canvas.style.transform=`scale(${_scale}) translate(${_panX}px, ${_panY}px)`;canvas.style.transformOrigin='0 0';};
+      // Scroll zoom
+      wrapper.addEventListener('wheel',(e)=>{
+        e.preventDefault();
+        const delta=e.deltaY>0?-0.1:0.1;
+        _scale=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,_scale+delta));
+        if(Math.abs(_scale-1)<0.05){_scale=1;_panX=0;_panY=0;}
+        _apply();
+      },{passive:false});
+      // Pan con drag (solo quando zoomato)
+      wrapper.addEventListener('mousedown',(e)=>{if(_scale<=1)return;_dragging=true;_dragStart={x:e.clientX-_panX,y:e.clientY-_panY};wrapper.style.cursor='grabbing';});
+      window.addEventListener('mousemove',(e)=>{if(!_dragging)return;_panX=e.clientX-_dragStart.x;_panY=e.clientY-_dragStart.y;_apply();});
+      window.addEventListener('mouseup',()=>{_dragging=false;wrapper.style.cursor='';});
+      // Doppio click: reset zoom
+      wrapper.addEventListener('dblclick',()=>{_scale=1;_panX=0;_panY=0;_apply();});
+      // Touch: pinch zoom
+      let _lastTouchDist=0;
+      wrapper.addEventListener('touchstart',(e)=>{
+        if(e.touches.length===2){
+          const dx=e.touches[0].clientX-e.touches[1].clientX;
+          const dy=e.touches[0].clientY-e.touches[1].clientY;
+          _lastTouchDist=Math.sqrt(dx*dx+dy*dy);
+        }
+      },{passive:true});
+      wrapper.addEventListener('touchmove',(e)=>{
+        if(e.touches.length===2){
+          e.preventDefault();
+          const dx=e.touches[0].clientX-e.touches[1].clientX;
+          const dy=e.touches[0].clientY-e.touches[1].clientY;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          if(_lastTouchDist>0){const d=(dist-_lastTouchDist)*0.005;_scale=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,_scale+d));}
+          _lastTouchDist=dist;_apply();
+        }
+      },{passive:false});
+      wrapper.addEventListener('touchend',()=>{_lastTouchDist=0;},{passive:true});
+    },
 
     handleMessage(fromId,msg){
       if(msg.type==='REQUEST_SYNC'&&State.isHost){

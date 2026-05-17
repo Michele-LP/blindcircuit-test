@@ -117,7 +117,6 @@ const Board = {
   _buildCache(ctx) {
     const { width, height } = this.data;
 
-    //ctx.fillStyle = '#161b22';
     const bgImg = this._imgs['board_bg'];
     if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
       ctx.drawImage(bgImg, 0, 0, this.W, this.H);
@@ -125,9 +124,6 @@ const Board = {
       ctx.fillStyle = '#161b22';
       ctx.fillRect(0, 0, this.W, this.H);
     }
-    // FIX v6.4: rimossa la ctx.fillRect(0,0,W,H) incondizionata che era qui.
-    // Era un residuo della versione precedente: senza fillStyle esplicito il
-    // canvas usa nero di default, coprendo la background image appena disegnata.
 
     for (let cy = 0; cy < height; cy++)
       for (let cx = 0; cx < width; cx++)
@@ -144,6 +140,105 @@ const Board = {
 
     for (const laser of this.data.lasers || [])
       this._drawLaserSource(ctx, laser);
+
+    // v6.9 G5: traiettorie laser statiche (tratteggiata)
+    this._drawLaserPaths(ctx);
+  },
+
+  // v6.9 G5: disegna le traiettorie dei laser fissi del tabellone
+  // Linea tratteggiata dalla sorgente fino al primo muro (ignora i robot).
+  _drawLaserPaths(ctx) {
+    const S = this.CELL;
+    const OPP = this._OPP;
+    for (const L of this.data?.lasers ?? []) {
+      const v = this._dirVec(L.dir);
+      // Controlla se un muro blocca già all'uscita dalla sorgente
+      if ((this.wallsAt(L.x, L.y) || []).includes(L.dir)) continue;
+      let lx = L.x + v.x, ly = L.y + v.y;
+      if (!this.inBounds(lx, ly)) continue;
+      if ((this.wallsAt(lx, ly) || []).includes(OPP[L.dir])) continue;
+
+      const startX = L.x * S + S / 2, startY = L.y * S + S / 2;
+      let endX = lx * S + S / 2, endY = ly * S + S / 2;
+
+      while (this.inBounds(lx, ly)) {
+        endX = lx * S + S / 2; endY = ly * S + S / 2;
+        // Muro blocca l'uscita dalla cella corrente
+        if ((this.wallsAt(lx, ly) || []).includes(L.dir)) break;
+        const nlx = lx + v.x, nly = ly + v.y;
+        if (!this.inBounds(nlx, nly)) break;
+        // Muro blocca l'ingresso nella cella successiva
+        if ((this.wallsAt(nlx, nly) || []).includes(OPP[L.dir])) break;
+        lx = nlx; ly = nly;
+      }
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(248, 81, 73, 0.18)';
+      ctx.lineWidth = Math.max(1, S * 0.04);
+      ctx.setLineDash([S * 0.12, S * 0.1]);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  },
+
+  // v6.9 U1: descrizione testuale di una cella per il tooltip
+  cellDescription(cx, cy) {
+    const DIRS = { N:'Nord ↑', S:'Sud ↓', E:'Est →', W:'Ovest ←' };
+    const parts = [];
+    const cell = this._cellAt(cx, cy);
+    if (cell) {
+      switch (cell.type) {
+        case 'conveyor':
+          parts.push(`Nastro trasportatore → ${DIRS[cell.dir]??cell.dir}`);
+          parts.push('Muove 1 volta per registro'); break;
+        case 'express_conveyor':
+          parts.push(`Nastro express → ${DIRS[cell.dir]??cell.dir}`);
+          parts.push('Muove 2 volte per registro'); break;
+        case 'conveyor_turn':
+          parts.push(`Nastro curva: ${DIRS[cell.from]??'?'} → ${DIRS[cell.to]??'?'}`);
+          parts.push('Ruota il robot di 90° e lo sposta'); break;
+        case 'express_conveyor_turn':
+          parts.push(`Nastro express curva: ${DIRS[cell.from]??'?'} → ${DIRS[cell.to]??'?'}`);
+          parts.push('Muove 2 volte, ruota 90°'); break;
+        case 'gear_cw':
+          parts.push('Ingranaggio orario ↻');
+          parts.push('Ruota il robot di 90° a destra'); break;
+        case 'gear_ccw':
+          parts.push('Ingranaggio antiorario ↺');
+          parts.push('Ruota il robot di 90° a sinistra'); break;
+        case 'pit':
+          parts.push('Buco ⚠');
+          parts.push('Il robot cade e fa reboot'); break;
+        case 'recharge':
+          parts.push('Batteria ⚡');
+          parts.push('+1 energia a fine registro'); break;
+        case 'push_panel':
+          parts.push(`Pistone → ${DIRS[cell.dir]??cell.dir}`);
+          if (cell.activeRegisters?.length)
+            parts.push(`Attivo in: ${cell.activeRegisters.map(r=>'P'+r).join(', ')}`);
+          break;
+      }
+    }
+    // Checkpoint
+    const cp = (this.data?.checkpoints??[]).find(c=>c.x===cx&&c.y===cy);
+    if (cp) parts.push(`⭐ Checkpoint ${cp.order}`);
+    // Laser sorgente
+    const laser = (this.data?.lasers??[]).find(l=>l.x===cx&&l.y===cy);
+    if (laser) parts.push(`Laser → ${DIRS[laser.dir]??laser.dir} (forza ${laser.strength??1})`);
+    // Muri
+    const walls = this.wallsAt(cx, cy);
+    if (walls.length) parts.push(`Muri: ${walls.map(w=>DIRS[w]??w).join(', ')}`);
+    // Posizione partenza
+    const sp = (this.data?.startPositions??[]).findIndex(s=>s.x===cx&&s.y===cy);
+    if (sp >= 0) parts.push(`Partenza giocatore ${sp+1}`);
+
+    if (!parts.length) return null;
+    return `[${cx},${cy}] ${parts.join('\n')}`;
   },
 
   // ── Singola cella ─────────────────────────────────────────────────────────

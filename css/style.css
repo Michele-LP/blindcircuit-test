@@ -255,7 +255,7 @@ canvas {
 .side-panel { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .game-controls-sm { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto; padding-top: 8px; }
 
-/* Barra info compatta: timer + codice affiancati */
+/* Barra info compatta: timer + settings icon */
 .side-info-bar {
   display: flex;
   align-items: center;
@@ -263,8 +263,17 @@ canvas {
   gap: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid #21262d;
-  flex-wrap: wrap;
 }
+/* v6.9 U6: settings toggle */
+.settings-toggle { font-size: 1rem; }
+/* v6.9 U6: settings popup */
+.settings-popup {
+  display: flex; flex-direction: column; gap: 6px;
+  background: rgba(13,17,23,0.95); border: 1px solid #30363d; border-radius: 6px;
+  padding: 8px 10px;
+}
+.settings-popup-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.vol-label { font-size: 0.6rem; color: #8b949e; }
 
 /* v6.8.2: Controlli audio */
 .audio-controls { display: flex; align-items: center; gap: 3px; }
@@ -323,13 +332,10 @@ canvas {
 .prog-actions-sm { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .prog-status     { color: #8b949e; font-size: 0.8rem; flex: 1; line-height: 1.3; }
 
-/* ── Mano: griglia 5 colonne → 5 carte in riga 1, 4 in riga 2 ─────────
-   Con 9 carte, CSS Grid le distribuisce automaticamente 5+4.
-   Ogni carta occupa 1/5 della larghezza disponibile del pannello.
-*/
+/* v6.9 U7: griglia 3×3 per le carte in mano (9 carte = 3+3+3) */
 .hand-row-sm {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   width: 100%;
 }
@@ -480,3 +486,27 @@ canvas {
 
 /* ── SPECTATOR BADGE ──────────────────────────────────────────────── */
 .spectator-badge { font-size:0.78rem; font-weight:700; color:#a78bfa; text-align:center; background:rgba(167,139,250,0.10); border:1px solid rgba(167,139,250,0.30); border-radius:6px; padding:4px 8px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v6.9 — Nuovi stili
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* v6.9 U1: tooltip cella canvas */
+.canvas-tooltip {
+  position: fixed; z-index: 10001;
+  background: rgba(13,17,23,0.96); color: #e6edf3;
+  border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #e3b341;
+  padding: 6px 10px; border-radius: 6px;
+  font-size: 0.72rem; line-height: 1.45;
+  max-width: 260px; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  white-space: pre-wrap;
+}
+
+/* v6.9 U2: zoom canvas */
+.canvas-wrapper { overflow: hidden; }
+canvas { transition: transform 0.08s ease-out; }
+
+/* v6.9 U7: drag & drop feedback */
+.game-card.dragging { opacity: 0.4; transform: scale(0.9); }
+.reg-slot-sm.drag-over { border-color: #58a6ff !important; border-style: solid !important; background: rgba(88,166,255,0.12) !important; }

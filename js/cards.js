@@ -152,21 +152,77 @@ const Cards = {
       const s=document.getElementById('reg-'+i);if(!s)continue;s.innerHTML='';
       const c=me.registers[i];if(!c)continue;
       if(typeof c==='string'&&c.startsWith('worm_'))s.appendChild(this._wormCardEl(c));
-      else s.appendChild(this._cardEl(c,true,i));
+      else {
+        const el=this._cardEl(c,true,i);
+        // v6.9 U7: drag from register (back to hand)
+        if(!me.confirmed){
+          el.draggable=true;
+          el.addEventListener('dragstart',(e)=>{e.dataTransfer.setData('text/plain',JSON.stringify({from:'reg',regIndex:i}));el.classList.add('dragging');});
+          el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+        }
+        s.appendChild(el);
+      }
     }
+    // v6.9 U7: drop targets on register slots
+    if(!me.confirmed){
+      for(let i=0;i<CONFIG.registersCount;i++){
+        const s=document.getElementById('reg-'+i);if(!s)continue;
+        s.addEventListener('dragover',(e)=>{e.preventDefault();s.classList.add('drag-over');});
+        s.addEventListener('dragleave',()=>s.classList.remove('drag-over'));
+        s.addEventListener('drop',(e)=>{
+          e.preventDefault();s.classList.remove('drag-over');
+          try{
+            const data=JSON.parse(e.dataTransfer.getData('text/plain'));
+            if(data.from==='hand') this._dropHandToReg(data.handIndex,i);
+            else if(data.from==='reg'&&data.regIndex!==i) this._swapRegisters(data.regIndex,i);
+          }catch(_){}
+        });
+      }
+    }
+  },
+
+  // v6.9 U7: piazza carta dalla mano in un registro specifico
+  _dropHandToReg(handIndex,regIndex){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    const cid=me.hand[handIndex];if(!cid)return;
+    if(me.registers[regIndex]!==null)return; // slot già occupato
+    const inR=me.registers.filter(r=>r===cid).length,inH=me.hand.filter(c=>c===cid).length;
+    if(inR>=inH)return;
+    me.registers[regIndex]=cid;this.render();this._updateConfirmBtn();
+  },
+
+  // v6.9 U7: scambia due registri
+  _swapRegisters(fromReg,toReg){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    const a=me.registers[fromReg],b=me.registers[toReg];
+    // Non scambiare worm
+    if(typeof a==='string'&&a.startsWith('worm_'))return;
+    if(typeof b==='string'&&b.startsWith('worm_'))return;
+    me.registers[fromReg]=b;me.registers[toReg]=a;
+    this.render();this._updateConfirmBtn();
   },
 
   _wormCardEl(wormId){
     const wd=(typeof RULES!=='undefined'?RULES?.worms:null);
     const def=wd?.find(w=>w.id===wormId);
     const col=def?.color??'#ef4444',sym=def?.symbol??'🦠',nm=def?.name??'WORM';
-    const seq=(def?.sequence??[]).map(s=>{switch(s.type){case'move':return`Avanza ${s.steps??1}`;case'backUp':return`Indietro ${s.steps??1}`;case'rotateLeft':return'Ruota ←';case'rotateRight':return'Ruota →';case'uTurn':return'U-Turn';default:return s.type;}}).join(' → ');
+    // v6.9 U4: ogni istruzione a capo nel tooltip
+    const seqArr=(def?.sequence??[]).map(s=>{switch(s.type){case'move':return`▶ Avanza ${s.steps??1}`;case'backUp':return`◀ Indietro ${s.steps??1}`;case'rotateLeft':return'↺ Ruota ←';case'rotateRight':return'↻ Ruota →';case'uTurn':return'⟳ U-Turn';default:return s.type;}});
+    const seqTooltip=seqArr.join('\n');
     const el=document.createElement('div');el.className='game-card worm-card';
-    el.dataset.tooltip=`WORM: ${nm}\nSequenza: ${seq||'(nessuna)'}`;el.dataset.tooltipColor=col;
-    el.style.cssText=`background:${col}22;border:2px solid ${col};border-radius:5px;cursor:not-allowed;width:100%;aspect-ratio:2/3;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;`;
-    const ic=document.createElement('div');ic.style.cssText='font-size:1.4rem;line-height:1;';ic.textContent=sym;
-    const ne=document.createElement('div');ne.className='card-name-area';ne.style.cssText=`color:${col};font-size:0.42rem;font-weight:800;`;ne.textContent=nm.toUpperCase();
-    el.appendChild(ic);el.appendChild(ne);return el;
+    el.dataset.tooltip=`WORM: ${nm}\n${seqTooltip||'(nessuna sequenza)'}`;el.dataset.tooltipColor=col;
+    el.style.cssText=`background:${col}22;border:2px solid ${col};border-radius:5px;cursor:not-allowed;width:100%;aspect-ratio:2/3;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;`;
+    const ic=document.createElement('div');ic.style.cssText='font-size:1.1rem;line-height:1;';ic.textContent=sym;
+    const ne=document.createElement('div');ne.className='card-name-area';ne.style.cssText=`color:${col};font-size:0.42rem;font-weight:800;position:relative;`;ne.textContent=nm.toUpperCase();
+    el.appendChild(ic);el.appendChild(ne);
+    // v6.9 U5: sequenza sempre visibile sotto il simbolo
+    if(seqArr.length){
+      const sq=document.createElement('div');sq.className='worm-seq-visible';
+      sq.style.cssText=`font-size:0.33rem;color:${col};line-height:1.35;text-align:center;padding:0 2px;opacity:0.9;max-height:40%;overflow:hidden;`;
+      sq.textContent=seqArr.map(s=>s.replace(/^[▶◀↺↻⟳]\s*/,'')).join(' → ');
+      el.appendChild(sq);
+    }
+    return el;
   },
 
   _renderHand(me){
@@ -186,6 +242,12 @@ const Cards = {
     const nd=document.createElement('div');nd.className='card-name-area';nd.textContent=(def?.name??cardId).toUpperCase();
     if(cardId==='spam')nd.style.color='#f85149';el.appendChild(nd);
     if(!dimmed||isReg)el.addEventListener('click',()=>{if(State.myPlayer()?.confirmed)return;isReg?this.onRegisterClick(index):this.onCardClick(index);});
+    // v6.9 U7: drag dalla mano
+    if(!isReg&&!dimmed){
+      el.draggable=true;
+      el.addEventListener('dragstart',(e)=>{e.dataTransfer.setData('text/plain',JSON.stringify({from:'hand',handIndex:index}));el.classList.add('dragging');});
+      el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    }
     return el;
   },
 

@@ -123,18 +123,29 @@
       <!-- ② Colonna destra: info partita + programmazione / esecuzione -->
       <div id="game-side">
 
-        <!-- Barra info compatta: timer + codice + audio -->
+        <!-- v6.9 U6: barra compatta — solo timer + icona settings -->
         <div class="side-info-bar">
           <div class="game-timer" id="game-timer">⏱ 00:00</div>
-          <div class="audio-controls">
-            <button class="btn-icon audio-toggle" id="btn-bg-toggle" title="Musica on/off">🎵</button>
-            <input type="range" id="audio-sfx-vol" class="vol-slider" min="0" max="100" value="70" title="Volume effetti" />
-            <input type="range" id="audio-bg-vol" class="vol-slider" min="0" max="100" value="25" title="Volume musica" />
+          <button class="btn-icon settings-toggle" id="btn-settings-toggle" title="Impostazioni partita">⚙️</button>
+        </div>
+
+        <!-- v6.9 U6: popup settings (codice + audio) -->
+        <div class="settings-popup" id="settings-popup" style="display:none">
+          <div class="settings-popup-row">
+            <div class="audio-controls">
+              <button class="btn-icon audio-toggle" id="btn-bg-toggle" title="Musica on/off">🎵</button>
+              <label class="vol-label">SFX</label>
+              <input type="range" id="audio-sfx-vol" class="vol-slider" min="0" max="100" value="70" title="Volume effetti" />
+              <label class="vol-label">BGM</label>
+              <input type="range" id="audio-bg-vol" class="vol-slider" min="0" max="100" value="25" title="Volume musica" />
+            </div>
           </div>
-          <div class="room-code-widget small">
-            <span class="room-code-label">Codice:</span>
-            <span class="room-code-value small" id="game-code">------</span>
-            <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
+          <div class="settings-popup-row">
+            <div class="room-code-widget small">
+              <span class="room-code-label">Codice:</span>
+              <span class="room-code-value small" id="game-code">------</span>
+              <button class="btn-icon" id="btn-copy-code-game" title="Copia codice">📋</button>
+            </div>
           </div>
         </div>
 
@@ -272,6 +283,15 @@
       await UI.copyText(State.roomCode);
       UI.flashButton(document.getElementById('btn-copy-code-game'), '✓', 1200);
     });
+
+    // v6.9 U6: toggle settings popup
+    const settingsToggle = document.getElementById('btn-settings-toggle');
+    const settingsPopup = document.getElementById('settings-popup');
+    if (settingsToggle && settingsPopup) {
+      settingsToggle.addEventListener('click', () => {
+        settingsPopup.style.display = settingsPopup.style.display === 'none' ? 'flex' : 'none';
+      });
+    }
 
     // v6.8.2: Audio controls wiring
     const bgToggle = document.getElementById('btn-bg-toggle');
