@@ -270,7 +270,7 @@ canvas {
 .hud-name  { font-size: 0.6rem; font-weight: 700; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .hud-sub   { font-size: 0.52rem; color: #8b949e; white-space: nowrap; font-family: 'Courier New', monospace; line-height: 1.2; }
 .hud-card.is-me .hud-name { color: #58a6ff; }
-.hud-ready-icon { font-size: 0.65rem; flex-shrink: 0; }
+.hud-conf { font-size: 0.55rem; flex-shrink: 0; line-height: 1; }
 
 /* ════════════════════════════════════════ PROGRAMMAZIONE */
 .prog-header-sm { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

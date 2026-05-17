@@ -87,12 +87,10 @@ const Cards = {
   },
 
   updateOthersStatus(){
-    const el=document.getElementById('others-status');if(!el)return;el.innerHTML='';
+    // v6.8.1: aggiorna le icone conferma dentro l'HUD (non più sezione separata)
     for(const p of State.getPlayerList()){
-      const ch=CONFIG.characters.find(c=>c.id===p.character),col=ch?.color??'#6b7280',isMe=p.id===State.myId;
-      const r=document.createElement('div');r.className='other-status-row'+(isMe?' is-me':'');
-      r.innerHTML=`<span class="other-dot" style="background:${col}"></span><span class="other-name">${(p.nickname||'?').substring(0,10)}${isMe?' (tu)':''}</span><span class="other-conf">${p.confirmed?'✅':'⏳'}</span>`;
-      el.appendChild(r);
+      const el=document.getElementById(`hud-conf-${p.id}`);
+      if(el) el.textContent=p.confirmed?'✅':'⏳';
     }
   },
 

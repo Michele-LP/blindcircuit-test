@@ -268,12 +268,14 @@ const Game = (() => {
         const wrap=document.createElement('div');wrap.className='hud-robot-wrap';wrap.style.cssText=`background:${color}22;border:1px solid ${color}55;`;
         wrap.appendChild(_makeRobotImg(char,'hud-robot-img'));
         const info=document.createElement('div');info.className='hud-info';
-        // v6.8.1: nome + energie/checkpoint in una sola riga compatta
         const nm=document.createElement('div');nm.className='hud-name';nm.id=`hud-name-${p.id}`;
         nm.textContent=(p.nickname||'?').substring(0,8)+(isMe?' (tu)':'');
         const sub=document.createElement('div');sub.className='hud-sub';sub.id=`hud-sub-${p.id}`;
         sub.textContent=`⚡${p.energy??CONFIG.startingEnergy}`;
-        info.appendChild(nm);info.appendChild(sub);card.appendChild(wrap);card.appendChild(info);hud.appendChild(card);
+        info.appendChild(nm);info.appendChild(sub);
+        // v6.8.1: icona conferma programmazione (⏳/✅), aggiornata da Cards.updateOthersStatus()
+        const conf=document.createElement('span');conf.className='hud-conf';conf.id=`hud-conf-${p.id}`;
+        card.appendChild(wrap);card.appendChild(info);card.appendChild(conf);hud.appendChild(card);
       }
     },
 
@@ -287,6 +289,8 @@ const Game = (() => {
 
     enterProgramming(){setPanels(true,false);this.showAdvanceButton(false,false);},
     showExecPanel(registers){
+      // v6.8.1: pulisci icone conferma dall'HUD
+      document.querySelectorAll('.hud-conf').forEach(e=>e.textContent='');
       setPanels(false,true);
       const ep=document.getElementById('exec-panel');if(!ep)return;ep.innerHTML='';
       const title=document.createElement('div');title.id='exec-panel-title';title.textContent='— In esecuzione —';ep.appendChild(title);
