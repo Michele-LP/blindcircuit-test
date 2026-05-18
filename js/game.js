@@ -35,7 +35,7 @@ const Game = (() => {
 
   // NEW v6.8: cell size dinamico — solo 2 colonne (canvas + pannello destro)
   function _computeCellSize(mapW, mapH) {
-    const RW = 320;                              // larghezza pannello destro (max-width 310 + gap)
+    const RW = 330;                              // larghezza pannello destro (max-width 310 + gap)
     const PAD = 36;                              // padding complessivo orizzontale
     const VP = 36;                               // padding verticale
     const availW = Math.max(300, window.innerWidth - RW - PAD);
