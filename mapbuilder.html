@@ -46,6 +46,8 @@ body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--
 .tool-btn.active{border-color:var(--accent);color:var(--accent2);background:rgba(31,111,235,0.10);}
 .tool-btn .icon{font-size:1.3rem;line-height:1;}
 .tool-sep{height:1px;background:var(--border);margin:4px 0;}
+.tool-cat{font-size:0.5rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.08em;padding:6px 2px 2px;text-align:center;opacity:0.7;border-top:1px solid var(--border);margin-top:2px;}
+.tool-cat:first-child{border-top:none;margin-top:0;}
 
 /* ═══ CANVAS ═══ */
 canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-rendering:pixelated;}
@@ -137,28 +139,32 @@ canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-
 //  MAP BUILDER — BlindCircuit
 // ═══════════════════════════════════════════════════════════════════════════
 
+// v6.9 M1: strumenti raggruppati per categoria
 const TOOLS = [
+  { id:'_cat', name:'Base' },
   { id:'select',  icon:'🖱', name:'Seleziona' },
-  { id:'_sep1' },
   { id:'floor',   icon:'⬜', name:'Pavimento' },
-  { id:'pit',     icon:'⬛', name:'Buco' },
-  { id:'recharge',icon:'⚡', name:'Ricarica' },
-  { id:'_sep2' },
-  { id:'conveyor',       icon:'➡', name:'Nastro' },
+  { id:'eraser',  icon:'🧹', name:'Cancella' },
+
+  { id:'_cat', name:'Nastri' },
+  { id:'conveyor',        icon:'➡', name:'Nastro' },
   { id:'express_conveyor',icon:'⏩', name:'Nastro 2x' },
-  { id:'conveyor_turn',  icon:'↪', name:'Nastro L' },
-  { id:'_sep3' },
+  { id:'conveyor_turn',   icon:'↪', name:'Curva' },
+
+  { id:'_cat', name:'Meccanica' },
   { id:'gear_cw', icon:'↻', name:'Gear CW' },
   { id:'gear_ccw',icon:'↺', name:'Gear CCW' },
-  { id:'_sep4' },
-  { id:'push_panel',icon:'🔲', name:'Pistone' },
-  { id:'laser',     icon:'🔴', name:'Laser' },
-  { id:'_sep5' },
+  { id:'recharge',icon:'⚡', name:'Ricarica' },
+
+  { id:'_cat', name:'Ostacoli' },
+  { id:'pit',        icon:'⬛', name:'Buco' },
+  { id:'push_panel', icon:'🔲', name:'Pistone' },
+  { id:'laser',      icon:'🔴', name:'Laser' },
+  { id:'wall',       icon:'🧱', name:'Muro' },
+
+  { id:'_cat', name:'Obiettivi' },
   { id:'checkpoint',icon:'🏁', name:'Checkpoint' },
   { id:'start',     icon:'🤖', name:'Start' },
-  { id:'_sep6' },
-  { id:'wall',   icon:'🧱', name:'Muro' },
-  { id:'eraser', icon:'🧹', name:'Cancella' },
 ];
 
 const DIRS = ['N','E','S','W'];
@@ -231,6 +237,15 @@ const E = {
   nextCheckpointOrder: 1,
   paintDir: 'N',       // dir di default per nastri, laser, push, start
 
+  // v6.9 M2: impostazioni persistenti del pennello — ricorda l'ultima config usata per tipo
+  brushSettings: {
+    dir: 'N',
+    from: 'S', to: 'E',
+    express: false,
+    activeRegisters: [1,3,5],
+    laserStrength: 1,
+  },
+
   init() {
     this._buildToolbox();
     this._bindEvents();
@@ -252,6 +267,11 @@ const E = {
   _buildToolbox() {
     const tb = document.getElementById('toolbox');
     for (const t of TOOLS) {
+      // v6.9 M1: intestazioni categoria
+      if (t.id === '_cat') {
+        const h = document.createElement('div'); h.className = 'tool-cat'; h.textContent = t.name;
+        tb.appendChild(h); continue;
+      }
       if (t.id.startsWith('_sep')) { const s=document.createElement('div');s.className='tool-sep';tb.appendChild(s);continue; }
       const b = document.createElement('button');
       b.className = 'tool-btn' + (t.id === this.tool ? ' active' : '');
@@ -377,7 +397,8 @@ const E = {
         if (existing) {
           this.lasers = this.lasers.filter(l => !(l.x===cx && l.y===cy));
         } else {
-          this.lasers.push({ x: cx, y: cy, dir: this.paintDir, strength: 1 });
+          // v6.9 M2: usa forza dal brushSettings
+          this.lasers.push({ x: cx, y: cy, dir: this.paintDir, strength: this.brushSettings.laserStrength });
         }
         break;
 
@@ -411,9 +432,11 @@ const E = {
 
   _makeCell(type) {
     const c = { type };
+    const bs = this.brushSettings;
+    // v6.9 M2: usa le impostazioni persistenti del pennello
     if (['conveyor','express_conveyor','push_panel'].includes(type)) c.dir = this.paintDir;
-    if (type === 'conveyor_turn') { c.from = 'S'; c.to = 'E'; c.express = false; }
-    if (type === 'push_panel') c.activeRegisters = [1,3,5];
+    if (type === 'conveyor_turn') { c.from = bs.from; c.to = bs.to; c.express = bs.express; }
+    if (type === 'push_panel') c.activeRegisters = [...bs.activeRegisters];
     return c;
   },
 
@@ -424,7 +447,26 @@ const E = {
   // ── Properties panel ───────────────────────────────────────────────────
   _showProps() {
     const p = document.getElementById('props');
-    if (this.selX < 0) { p.innerHTML = '<div class="prop-hint">Clicca una cella per modificarla.</div>'; return; }
+    if (this.selX < 0) {
+      // v6.9 M2: mostra riepilogo impostazioni pennello anche senza selezione
+      const bs = this.brushSettings;
+      let html = '<div class="prop-hint">Clicca una cella per modificarla.</div>';
+      html += `<div style="margin-top:8px"><div class="prop-title">🧭 Direzione piazzamento</div></div>`;
+      html += `<div style="font-size:0.65rem;color:var(--text2);margin-bottom:4px">Prossima cella orientata: <strong style="color:var(--accent2)">${DIR_ARROW[this.paintDir]} ${this.paintDir}</strong></div>`;
+      html += this._dirGridHTML(this.paintDir, 'paintdir');
+      html += `<div style="margin-top:10px"><div class="prop-title">Pennello ricorda</div></div>`;
+      html += `<div class="prop-hint" style="font-size:0.65rem;line-height:1.6">`;
+      html += `Curva: ${DIR_ARROW[bs.from]}→${DIR_ARROW[bs.to]} ${bs.express?'(2x)':'(1x)'}<br>`;
+      html += `Pistone: P${bs.activeRegisters.join(',P')}<br>`;
+      html += `Laser: forza ${bs.laserStrength}`;
+      html += `</div>`;
+      p.innerHTML = html;
+      // Bind paintdir buttons anche qui
+      document.querySelectorAll('.dir-btn[data-dirgroup="paintdir"]').forEach(b => {
+        b.addEventListener('click', () => { this.paintDir = b.dataset.dir; this._showProps(); });
+      });
+      return;
+    }
     const cx = this.selX, cy = this.selY, key = `${cx},${cy}`;
     const cell = this.cells[key];
     const laser = this.lasers.find(l => l.x===cx && l.y===cy);
@@ -489,8 +531,9 @@ const E = {
     }
     html += `</div>`;
 
-    // Direzione di default per painting
-    html += `<div style="margin-top:12px"><div class="prop-title">Dir. pennello</div></div>`;
+    // v6.9 M3: etichetta direzione più chiara con indicazione visiva
+    html += `<div style="margin-top:12px"><div class="prop-title">🧭 Direzione piazzamento</div></div>`;
+    html += `<div style="font-size:0.65rem;color:var(--text2);margin-bottom:4px">Nuove celle verranno orientate: <strong style="color:var(--accent2)">${DIR_ARROW[this.paintDir]} ${this.paintDir}</strong></div>`;
     html += this._dirGridHTML(this.paintDir, 'paintdir');
 
     p.innerHTML = html;
@@ -529,16 +572,16 @@ const E = {
     document.querySelectorAll('.dir-btn[data-dirgroup]').forEach(b => {
       b.addEventListener('click', () => {
         const g = b.dataset.dirgroup, d = b.dataset.dir;
-        if (g === 'celldir' && this.cells[key]) this.cells[key].dir = d;
-        if (g === 'turnfrom' && this.cells[key]) this.cells[key].from = d;
-        if (g === 'turnto' && this.cells[key]) this.cells[key].to = d;
+        if (g === 'celldir' && this.cells[key]) { this.cells[key].dir = d; this.brushSettings.dir = d; }
+        if (g === 'turnfrom' && this.cells[key]) { this.cells[key].from = d; this.brushSettings.from = d; }
+        if (g === 'turnto' && this.cells[key]) { this.cells[key].to = d; this.brushSettings.to = d; }
         if (g === 'laserdir') { const l = this.lasers.find(l=>l.x===cx&&l.y===cy); if(l) l.dir = d; }
         if (g === 'startdir') { const s = this.starts.find(s=>s.x===cx&&s.y===cy); if(s) s.dir = d; }
         if (g === 'paintdir') this.paintDir = d;
         this._showProps(); this.render();
       });
     });
-    // Registri push
+    // Registri push — v6.9 M2: aggiorna anche brushSettings
     document.querySelectorAll('.reg-btn[data-reg]').forEach(b => {
       b.addEventListener('click', () => {
         const cell = this.cells[key]; if (!cell) return;
@@ -547,19 +590,22 @@ const E = {
         const idx = cell.activeRegisters.indexOf(r);
         if (idx >= 0) cell.activeRegisters.splice(idx, 1); else cell.activeRegisters.push(r);
         cell.activeRegisters.sort();
+        this.brushSettings.activeRegisters = [...cell.activeRegisters];
         this._showProps(); this.render();
       });
     });
-    // Forza laser
+    // Forza laser — v6.9 M2: persisti in brushSettings
     const strIn = document.querySelector('[data-action="laser-str"]');
     if (strIn) strIn.addEventListener('change', () => {
       const l = this.lasers.find(l=>l.x===cx&&l.y===cy);
-      if (l) l.strength = Math.max(1, Math.min(3, +strIn.value));
+      const v = Math.max(1, Math.min(3, +strIn.value));
+      if (l) l.strength = v;
+      this.brushSettings.laserStrength = v;
     });
-    // Toggle express nastro curvo
+    // Toggle express nastro curvo — v6.9 M2: persisti in brushSettings
     const expBtn = document.querySelector('[data-action="toggle-express"]');
     if (expBtn) expBtn.addEventListener('click', () => {
-      const cell = this.cells[key]; if(cell) cell.express = !cell.express;
+      const cell = this.cells[key]; if(cell) { cell.express = !cell.express; this.brushSettings.express = cell.express; }
       this._showProps(); this.render();
     });
   },
