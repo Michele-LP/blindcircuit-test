@@ -22,6 +22,7 @@ const CONFIG = {
   availableMaps: [
     { id: 'exchange',      name: 'Exchange',      file: 'assets/maps/exchange.json' },
     { id: 'factory_floor', name: 'Factory Floor',  file: 'assets/maps/factory_floor.json' },
+    { id: 'losborrone', name: 'LoSborrone',  file: 'assets/maps/LoSborrone.json' },
     // Aggiungi nuove mappe qui dopo averle create col Map Builder:
   ],
   tileImages: {

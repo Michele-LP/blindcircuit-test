@@ -7,907 +7,400 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;600;700;800&display=swap');
-
-:root{
-  --bg:#0d1117; --surface:#161b22; --border:#21262d; --border2:#30363d;
-  --text:#e6edf3; --text2:#8b949e; --accent:#1f6feb; --accent2:#58a6ff;
-  --green:#3fb950; --red:#f85149; --yellow:#e3b341; --purple:#a78bfa; --pink:#ec4899;
-  --cell:48px;
-}
+:root{--bg:#0d1117;--surface:#161b22;--border:#21262d;--border2:#30363d;--text:#e6edf3;--text2:#8b949e;--accent:#1f6feb;--accent2:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#e3b341;--cell:48px;}
 html{height:100%;}
 body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
-
-/* ═══ HEADER ═══ */
 .header{display:flex;align-items:center;gap:16px;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;}
 .header .logo{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.1rem;color:var(--yellow);white-space:nowrap;}
 .header .logo span{color:var(--text2);font-weight:400;font-size:0.8rem;margin-left:6px;}
 .hgroup{display:flex;align-items:center;gap:8px;}
 .hgroup label{font-size:0.72rem;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;}
-.hgroup input,.hgroup select{background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);padding:5px 8px;font-size:0.85rem;font-family:inherit;}
+.hgroup input{background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);padding:5px 8px;font-size:0.85rem;font-family:inherit;}
 .hgroup input[type=number]{width:52px;text-align:center;}
 .hgroup input[type=text]{width:160px;}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;font-size:0.82rem;font-weight:600;border:none;border-radius:6px;cursor:pointer;transition:all 0.15s;font-family:inherit;}
-.btn:hover{opacity:0.85;} .btn:active{transform:scale(0.97);}
+.btn:hover{opacity:0.85;}.btn:active{transform:scale(0.97);}
 .btn-primary{background:var(--accent);color:#fff;}
 .btn-secondary{background:var(--border2);color:var(--text2);}
 .btn-green{background:#196c2e;color:var(--green);}
 .btn-red{background:#3d1010;color:var(--red);}
 .spacer{flex:1;}
-
-/* ═══ LAYOUT ═══ */
 .editor{display:flex;flex:1;overflow:hidden;}
-.toolbox{width:68px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:6px;gap:3px;overflow-y:auto;}
-.canvas-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:20px;background:repeating-conic-gradient(#13171e 0% 25%,#10141b 0% 50%) 0 0 / 20px 20px;}
-.props{width:260px;background:var(--surface);border-left:1px solid var(--border);padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;}
-
-/* ═══ TOOLBOX ═══ */
-.tool-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border:1.5px solid transparent;border-radius:6px;background:none;color:var(--text2);cursor:pointer;font-size:0.58rem;font-weight:600;font-family:inherit;text-transform:uppercase;letter-spacing:0.03em;transition:all 0.12s;}
-.tool-btn:hover{background:rgba(255,255,255,0.04);color:var(--text);}
-.tool-btn.active{border-color:var(--accent);color:var(--accent2);background:rgba(31,111,235,0.10);}
-.tool-btn .icon{font-size:1.3rem;line-height:1;}
-.tool-sep{height:1px;background:var(--border);margin:4px 0;}
-.tool-cat{font-size:0.5rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.08em;padding:6px 2px 2px;text-align:center;opacity:0.7;border-top:1px solid var(--border);margin-top:2px;}
-.tool-cat:first-child{border-top:none;margin-top:0;}
-
-/* ═══ CANVAS ═══ */
-canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-rendering:pixelated;}
-
-/* ═══ PROPERTIES ═══ */
+.canvas-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:20px;background:repeating-conic-gradient(#13171e 0% 25%,#10141b 0% 50%) 0 0/20px 20px;}
+.rpanel{width:300px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.rpanel::-webkit-scrollbar{width:4px;}.rpanel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.mouse-guide{display:flex;gap:10px;padding:8px 12px;background:rgba(0,0,0,0.3);border-bottom:1px solid var(--border);font-size:0.68rem;color:var(--text2);flex-wrap:wrap;}
+.mouse-guide b{color:var(--text);}
+.cat-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;font-size:0.78rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border);transition:all 0.12s;user-select:none;}
+.cat-header:hover{background:rgba(255,255,255,0.03);color:var(--text);}
+.cat-header.open{color:var(--accent2);background:rgba(31,111,235,0.06);}
+.cat-header .arrow{transition:transform 0.2s;font-size:0.7rem;}.cat-header.open .arrow{transform:rotate(90deg);}
+.cat-body{display:none;padding:6px 8px;gap:5px;flex-wrap:wrap;}.cat-body.open{display:flex;}
+.tile-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px;border:2px solid transparent;border-radius:6px;background:var(--bg);cursor:pointer;transition:all 0.12s;width:80px;}
+.tile-btn:hover{border-color:var(--border2);}.tile-btn.active{border-color:var(--accent);background:rgba(31,111,235,0.10);}
+.tile-btn img{width:42px;height:42px;image-rendering:pixelated;border-radius:3px;background:rgba(0,0,0,0.3);}
+.tile-btn .tile-label{font-size:0.58rem;font-weight:600;color:var(--text2);text-align:center;line-height:1.2;}
+.tile-btn.active .tile-label{color:var(--accent2);}
+.tile-btn-text{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:3px;background:rgba(0,0,0,0.3);font-size:1.2rem;}
+.props{padding:10px 12px;display:flex;flex-direction:column;gap:8px;flex:1;}
 .prop-title{font-size:0.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.07em;padding-bottom:6px;border-bottom:1px solid var(--border);}
 .prop-row{display:flex;align-items:center;gap:8px;}
 .prop-label{font-size:0.78rem;color:var(--text2);min-width:70px;font-weight:600;}
 .prop-value{font-size:0.85rem;color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace;}
-.dir-grid{display:grid;grid-template:auto auto auto / auto auto auto;gap:3px;}
+.dir-grid{display:grid;grid-template:auto auto auto/auto auto auto;gap:3px;}
 .dir-btn{width:32px;height:32px;border:1.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text2);font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;}
-.dir-btn:hover{border-color:var(--accent);}
-.dir-btn.active{border-color:var(--accent);background:rgba(31,111,235,0.15);color:var(--accent2);}
+.dir-btn:hover{border-color:var(--accent);}.dir-btn.active{border-color:var(--accent);background:rgba(31,111,235,0.15);color:var(--accent2);}
 .dir-btn.center{border:none;background:none;cursor:default;font-size:0.6rem;color:var(--text2);font-weight:700;}
 .wall-toggles{display:flex;gap:6px;}
 .wall-btn{padding:4px 10px;border:1.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text2);font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.1s;}
-.wall-btn:hover{border-color:var(--red);}
-.wall-btn.active{border-color:var(--red);background:rgba(248,81,73,0.12);color:var(--red);}
+.wall-btn:hover{border-color:var(--red);}.wall-btn.active{border-color:var(--red);background:rgba(248,81,73,0.12);color:var(--red);}
 .reg-toggles{display:flex;gap:4px;}
 .reg-btn{width:30px;height:30px;border:1.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text2);font-size:0.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;}
-.reg-btn:hover{border-color:var(--yellow);}
-.reg-btn.active{border-color:var(--yellow);background:rgba(227,179,65,0.12);color:var(--yellow);}
+.reg-btn:hover{border-color:var(--yellow);}.reg-btn.active{border-color:var(--yellow);background:rgba(227,179,65,0.12);color:var(--yellow);}
+.turn-toggles{display:flex;gap:6px;}
+.turn-btn{padding:5px 14px;border:1.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text2);font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.1s;}
+.turn-btn:hover{border-color:var(--accent);}.turn-btn.active{border-color:var(--accent);background:rgba(31,111,235,0.12);color:var(--accent2);}
 .prop-hint{font-size:0.68rem;color:var(--text2);line-height:1.4;background:rgba(0,0,0,0.3);border-radius:5px;padding:8px;}
 .str-input{width:48px;background:var(--bg);border:1px solid var(--border2);border-radius:5px;color:var(--text);padding:4px 8px;font-size:0.85rem;text-align:center;font-family:'JetBrains Mono',monospace;}
-
-/* ═══ FOOTER ═══ */
+.active-tool-badge{display:none;align-items:center;gap:6px;padding:6px 12px;background:rgba(31,111,235,0.08);border-bottom:1px solid var(--border);font-size:0.72rem;color:var(--accent2);font-weight:600;}
+.active-tool-badge.show{display:flex;}
+.active-tool-badge .deselect{margin-left:auto;cursor:pointer;color:var(--text2);font-size:0.68rem;}.active-tool-badge .deselect:hover{color:var(--red);}
+canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-rendering:pixelated;}
 .footer{display:flex;align-items:center;gap:12px;padding:8px 18px;background:var(--surface);border-top:1px solid var(--border);font-size:0.75rem;color:var(--text2);}
 .footer .stat{font-family:'JetBrains Mono',monospace;color:var(--text);}
-
-/* ═══ RESPONSIVE ═══ */
-@media(max-width:800px){
-  .editor{flex-direction:column;}
-  .toolbox{width:100%;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
-  .tool-sep{width:1px;height:auto;margin:0 4px;}
-  .props{width:100%;max-height:220px;border-left:none;border-top:1px solid var(--border);}
-}
+@media(max-width:800px){.editor{flex-direction:column;}.rpanel{width:100%;max-height:300px;border-left:none;border-top:1px solid var(--border);}}
 </style>
 </head>
 <body>
-
-<!-- ═══ HEADER ═══ -->
 <div class="header">
   <div class="logo">🗺 Map Builder<span>BlindCircuit</span></div>
-  <div class="hgroup">
-    <label>Nome</label>
-    <input type="text" id="inp-name" value="new_map" placeholder="nome_mappa"/>
-  </div>
-  <div class="hgroup">
-    <label>Griglia</label>
-    <input type="number" id="inp-w" value="12" min="4" max="24"/>
-    <span style="color:var(--text2)">×</span>
-    <input type="number" id="inp-h" value="12" min="4" max="24"/>
-    <button class="btn btn-secondary" id="btn-resize">Applica</button>
-  </div>
+  <div class="hgroup"><label>Nome</label><input type="text" id="inp-name" value="new_map"/></div>
+  <div class="hgroup"><label>Griglia</label><input type="number" id="inp-w" value="12" min="4" max="24"/><span style="color:var(--text2)">×</span><input type="number" id="inp-h" value="12" min="4" max="24"/><button class="btn btn-secondary" id="btn-resize">Applica</button></div>
   <div class="spacer"></div>
-  <button class="btn btn-secondary" id="btn-import">📂 Importa JSON</button>
-  <button class="btn btn-green" id="btn-export">💾 Esporta JSON</button>
+  <button class="btn btn-secondary" id="btn-import">📂 Importa</button>
+  <button class="btn btn-green" id="btn-export">💾 Esporta</button>
   <button class="btn btn-red" id="btn-clear">🗑 Reset</button>
   <input type="file" id="file-import" accept=".json" style="display:none"/>
 </div>
-
-<!-- ═══ MAIN ═══ -->
 <div class="editor">
-  <!-- TOOLBOX -->
-  <div class="toolbox" id="toolbox"></div>
-
-  <!-- CANVAS -->
-  <div class="canvas-area">
-    <canvas id="canvas" width="576" height="576"></canvas>
-  </div>
-
-  <!-- PROPERTIES -->
-  <div class="props" id="props">
-    <div class="prop-hint">Clicca una cella sulla griglia per modificarla.<br><br>Usa gli strumenti a sinistra per scegliere cosa piazzare, poi clicca sulla griglia.</div>
+  <div class="canvas-area"><canvas id="canvas" width="576" height="576"></canvas></div>
+  <div class="rpanel" id="rpanel">
+    <div class="mouse-guide"><span><b>SX</b> piazza</span><span><b>DX</b> cancella</span><span><b>Click vuoto</b> seleziona</span></div>
+    <div class="active-tool-badge" id="active-tool-badge"></div>
+    <div id="tool-cats"></div>
+    <div class="props" id="props"><div class="prop-hint">Seleziona uno strumento, poi clicca sulla griglia.</div></div>
   </div>
 </div>
-
-<!-- ═══ FOOTER ═══ -->
 <div class="footer">
-  <span>Celle speciali: <span class="stat" id="stat-cells">0</span></span>
+  <span>Celle: <span class="stat" id="stat-cells">0</span></span>
   <span>Muri: <span class="stat" id="stat-walls">0</span></span>
   <span>Laser: <span class="stat" id="stat-lasers">0</span></span>
-  <span>Checkpoint: <span class="stat" id="stat-cps">0</span></span>
+  <span>CP: <span class="stat" id="stat-cps">0</span></span>
   <span>Start: <span class="stat" id="stat-starts">0</span></span>
 </div>
-
 <script>
-// ═══════════════════════════════════════════════════════════════════════════
-//  MAP BUILDER — BlindCircuit
-// ═══════════════════════════════════════════════════════════════════════════
-
-// v6.9 M1: strumenti raggruppati per categoria
-const TOOLS = [
-  { id:'_cat', name:'Base' },
-  { id:'select',  icon:'🖱', name:'Seleziona' },
-  { id:'floor',   icon:'⬜', name:'Pavimento' },
-  { id:'eraser',  icon:'🧹', name:'Cancella' },
-
-  { id:'_cat', name:'Nastri' },
-  { id:'conveyor',        icon:'➡', name:'Nastro' },
-  { id:'express_conveyor',icon:'⏩', name:'Nastro 2x' },
-  { id:'conveyor_turn',   icon:'↪', name:'Curva' },
-
-  { id:'_cat', name:'Meccanica' },
-  { id:'gear_cw', icon:'↻', name:'Gear CW' },
-  { id:'gear_ccw',icon:'↺', name:'Gear CCW' },
-  { id:'recharge',icon:'⚡', name:'Ricarica' },
-
-  { id:'_cat', name:'Ostacoli' },
-  { id:'pit',        icon:'⬛', name:'Buco' },
-  { id:'push_panel', icon:'🔲', name:'Pistone' },
-  { id:'laser',      icon:'🔴', name:'Laser' },
-  { id:'wall',       icon:'🧱', name:'Muro' },
-
-  { id:'_cat', name:'Obiettivi' },
-  { id:'checkpoint',icon:'🏁', name:'Checkpoint' },
-  { id:'start',     icon:'🤖', name:'Start' },
+const CATS=[
+  {id:'belts',name:'Nastri',tools:[
+    {id:'conveyor',name:'Dritto 1x',img:'beltForward1.png'},
+    {id:'express_conveyor',name:'Dritto 2x',img:'beltForward2.png'},
+    {id:'turn_r',name:'Curva DX 1x',img:'beltTurnRight1.png'},
+    {id:'turn_l',name:'Curva SX 1x',img:'beltTurnLeft1.png'},
+    {id:'eturn_r',name:'Curva DX 2x',img:'beltTurnRight2.png'},
+    {id:'eturn_l',name:'Curva SX 2x',img:'beltTurnLeft2.png'},
+  ]},
+  {id:'gears',name:'Ingranaggi',tools:[
+    {id:'gear_cw',name:'Orario',img:'rotationClockwise.png'},
+    {id:'gear_ccw',name:'Antiorario',img:'rotationCounterClockwise.png'},
+    {id:'recharge',name:'Ricarica',img:'recharge.png'},
+  ]},
+  {id:'hazards',name:'Ostacoli',tools:[
+    {id:'pit',name:'Buco',img:'hole.png'},
+    {id:'push_panel',name:'Pistone',img:'spring_on.png'},
+    {id:'laser',name:'Laser',img:'Laser_A.png'},
+    {id:'wall',name:'Muro',img:null,text:'🧱'},
+  ]},
+  {id:'goals',name:'Obiettivi',tools:[
+    {id:'checkpoint',name:'Checkpoint',img:'Finish1.png'},
+    {id:'start',name:'Partenza',img:null,text:'🤖'},
+  ]},
 ];
+const DIRS=['N','E','S','W'],DA={N:'↑',E:'→',S:'↓',W:'←'};
+const DR={N:-Math.PI/2,E:0,S:Math.PI/2,W:Math.PI};
+const TRF={push_panel:Math.PI,laser_src:0,conveyor:0,express:0};
+const V={N:[0,-1],E:[1,0],S:[0,1],W:[-1,0]};
+const OPP={N:'S',S:'N',E:'W',W:'E'};
+const RR={N:'E',E:'S',S:'W',W:'N'},RL={N:'W',W:'S',S:'E',E:'N'};
+const CC={floor:'transparent',pit:'#080c10',conveyor:'#1e293b',express_conveyor:'#2a1d00',conveyor_turn:'#1e293b',gear_cw:'#1a1f2e',gear_ccw:'#1a1f2e',recharge:'#0b1a10',push_panel:'#0d1a2a'};
+function cti(f,t){return{isRight:RR[f]===t,rotRad:DR[f]??0};}
+function fromTo(out,side){return side==='right'?{from:OPP[RL[out]],to:out}:{from:OPP[RR[out]],to:out};}
+function detectSide(f,t){return RR[OPP[f]]===t?'right':'left';}
+const TP={floor_a:'pavement_A.png',floor_b:'pavement_B.png',pit:'hole.png',conveyor:'beltForward1.png',express:'beltForward2.png',conv_turn_left:'beltTurnLeft1.png',conv_turn_right:'beltTurnRight1.png',exp_turn_left:'beltTurnLeft2.png',exp_turn_right:'beltTurnRight2.png',gear_cw:'rotationClockwise.png',gear_ccw:'rotationCounterClockwise.png',recharge:'recharge.png',push_panel:'spring_on.png',laser_src:'Laser_A.png',cp1:'Finish1.png',cp2:'Finish2.png',cp3:'Finish3.png'};
+const TI={};
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
+const E={
+  gridW:12,gridH:12,cellSize:48,mapName:'new_map',
+  cells:{},walls:new Set(),lasers:[],checkpoints:[],starts:[],
+  tool:null,selX:-1,selY:-1,openCat:null,
+  brushDir:'E',brushTurnSide:'right',brushActiveRegs:[1,3,5],brushLaserStr:1,
 
-const DIRS = ['N','E','S','W'];
-const DIR_ARROW = { N:'↑', E:'→', S:'↓', W:'←' };
-const DIR_ROT = { N:-Math.PI/2, E:0, S:Math.PI/2, W:Math.PI };
+  init(){this._buildTP();this._bind();this._preload();this._resize(12,12);this.render();},
+  _preload(){for(const[k,s]of Object.entries(TP)){const i=new Image();i.onload=()=>this.render();i.src=s;TI[k]=i;}},
 
-// Se un'immagine PNG non punta verso Est di default, aggiungi l'offset qui.
-// Esempio: se spring_on.png spinge verso Ovest → offset = Math.PI (180°)
-const TILE_ROT_FIX = {
-  push_panel: Math.PI,   // ← prova con Math.PI, Math.PI/2, -Math.PI/2, 0
-  laser_src:  0,
-  conveyor:   0,
-  express:    0,
-};
-const VECS      = { N:[0,-1], E:[1,0], S:[0,1], W:[-1,0] };
-
-const CELL_COLORS = {
-  floor:'transparent', pit:'#080c10', conveyor:'#1e293b', express_conveyor:'#2a1d00',
-  conveyor_turn:'#1e293b', express_conveyor_turn:'#2a1d00',
-  gear_cw:'#1a1f2e', gear_ccw:'#1a1f2e', recharge:'#0b1a10',
-  push_panel:'#0d1a2a', laser:'#1a0a0a',
-};
-
-// NEW v6.8: helper per determinare tipo immagine e rotazione delle curve
-const OPP_DIR = { N:'S', S:'N', E:'W', W:'E' };
-const ROT_R   = { N:'E', E:'S', S:'W', W:'N' };
-function convTurnInfo(from, to) {
-  const isRight = ROT_R[from] === to;
-  const rotRad = DIR_ROT[from] ?? 0;
-  return { isRight, rotRad };
-}
-
-// Percorsi tile — identici a CONFIG.tileImages nel gioco
-const TILE_PATHS = {
-  floor_a:   'assets/tiles/pavement_A.png',
-  floor_b:   'assets/tiles/pavement_B.png',
-  pit:       'assets/tiles/hole.png',
-  conveyor:  'assets/tiles/beltForward1.png',
-  express:   'assets/tiles/beltForward2.png',
-  conv_turn_left:  'assets/tiles/beltTurnLeft1.png',
-  conv_turn_right: 'assets/tiles/beltTurnRight1.png',
-  exp_turn_left:   'assets/tiles/beltTurnLeft2.png',
-  exp_turn_right:  'assets/tiles/beltTurnRight2.png',
-  gear_cw:   'assets/tiles/rotationClockwise.png',
-  gear_ccw:  'assets/tiles/rotationCounterClockwise.png',
-  recharge:  'assets/tiles/recharge.png',
-  push_panel:'assets/tiles/spring_on.png',
-  laser_src: 'assets/tiles/Laser_A.png',
-  cp1:       'assets/tiles/Finish1.png',
-  cp2:       'assets/tiles/Finish2.png',
-  cp3:       'assets/tiles/Finish3.png',
-};
-const TILE_IMGS = {};  // { key: HTMLImageElement } — riempito da _preloadTiles
-
-const canvas = document.getElementById('canvas');
-const ctx    = canvas.getContext('2d');
-
-const E = {
-  gridW: 12, gridH: 12, cellSize: 48,
-  mapName: 'new_map',
-  cells: {},           // "x,y" → { type, dir?, from?, to?, activeRegisters?, strength? }
-  walls: new Set(),    // "x,y,side"
-  lasers: [],          // { x, y, dir, strength }
-  checkpoints: [],     // { x, y, order }
-  starts: [],          // { x, y, dir }
-
-  tool: 'select',
-  selX: -1, selY: -1,
-  wallDir: 'N',
-  nextCheckpointOrder: 1,
-  paintDir: 'N',       // dir di default per nastri, laser, push, start
-
-  // v6.9 M2: impostazioni persistenti del pennello — ricorda l'ultima config usata per tipo
-  brushSettings: {
-    dir: 'N',
-    from: 'S', to: 'E',
-    express: false,
-    activeRegisters: [1,3,5],
-    laserStrength: 1,
-  },
-
-  init() {
-    this._buildToolbox();
-    this._bindEvents();
-    this._preloadTiles();
-    this._resize(12, 12);
-    this.render();
-  },
-
-  _preloadTiles() {
-    for (const [key, src] of Object.entries(TILE_PATHS)) {
-      const img = new Image();
-      img.onload = () => this.render();   // ridisegna quando l'immagine è pronta
-      img.src = src;
-      TILE_IMGS[key] = img;
-    }
-  },
-
-  // ── Toolbox ────────────────────────────────────────────────────────────
-  _buildToolbox() {
-    const tb = document.getElementById('toolbox');
-    for (const t of TOOLS) {
-      // v6.9 M1: intestazioni categoria
-      if (t.id === '_cat') {
-        const h = document.createElement('div'); h.className = 'tool-cat'; h.textContent = t.name;
-        tb.appendChild(h); continue;
+  _buildTP(){
+    const c=document.getElementById('tool-cats');
+    for(const cat of CATS){
+      const h=document.createElement('div');h.className='cat-header';h.dataset.cat=cat.id;
+      h.innerHTML=`<span>${cat.name}</span><span class="arrow">▶</span>`;
+      h.addEventListener('click',()=>this._togCat(cat.id));c.appendChild(h);
+      const b=document.createElement('div');b.className='cat-body';b.id=`cat-${cat.id}`;
+      for(const t of cat.tools){
+        const btn=document.createElement('div');btn.className='tile-btn';btn.dataset.tool=t.id;
+        btn.innerHTML=t.img?`<img src="${t.img}"/><span class="tile-label">${t.name}</span>`
+          :`<div class="tile-btn-text">${t.text||'?'}</div><span class="tile-label">${t.name}</span>`;
+        btn.addEventListener('click',()=>this._setTool(t.id,t.name));b.appendChild(btn);
       }
-      if (t.id.startsWith('_sep')) { const s=document.createElement('div');s.className='tool-sep';tb.appendChild(s);continue; }
-      const b = document.createElement('button');
-      b.className = 'tool-btn' + (t.id === this.tool ? ' active' : '');
-      b.dataset.tool = t.id;
-      b.innerHTML = `<span class="icon">${t.icon}</span>${t.name}`;
-      b.addEventListener('click', () => this._setTool(t.id));
-      tb.appendChild(b);
+      c.appendChild(b);
     }
   },
-
-  _setTool(id) {
-    this.tool = id;
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
-    if (id !== 'select') { this.selX = -1; this.selY = -1; this._showProps(); }
+  _togCat(id){
+    const was=this.openCat===id;
+    document.querySelectorAll('.cat-header').forEach(h=>h.classList.remove('open'));
+    document.querySelectorAll('.cat-body').forEach(b=>b.classList.remove('open'));
+    if(!was){this.openCat=id;document.querySelector(`.cat-header[data-cat="${id}"]`)?.classList.add('open');document.getElementById(`cat-${id}`)?.classList.add('open');}
+    else this.openCat=null;
+  },
+  _setTool(id,name){
+    this.tool=id;this.selX=-1;this.selY=-1;
+    document.querySelectorAll('.tile-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===id));
+    const badge=document.getElementById('active-tool-badge');
+    if(id){badge.innerHTML=`<span>Strumento: <b>${name||id}</b></span><span class="deselect" id="btn-desel">✕ Deseleziona</span>`;
+      badge.classList.add('show');document.getElementById('btn-desel').addEventListener('click',()=>this._setTool(null,null));
+    }else{badge.classList.remove('show');document.querySelectorAll('.tile-btn').forEach(b=>b.classList.remove('active'));}
+    this._showProps();
   },
 
-  // ── Resize ─────────────────────────────────────────────────────────────
-  _resize(w, h) {
-    this.gridW = Math.max(4, Math.min(24, w));
-    this.gridH = Math.max(4, Math.min(24, h));
-    canvas.width  = this.gridW * this.cellSize;
-    canvas.height = this.gridH * this.cellSize;
-    // Rimuovi elementi fuori bounds
-    for (const k of Object.keys(this.cells)) {
-      const [cx,cy] = k.split(',').map(Number);
-      if (cx >= this.gridW || cy >= this.gridH) delete this.cells[k];
-    }
-    this.lasers      = this.lasers.filter(l => l.x < this.gridW && l.y < this.gridH);
-    this.checkpoints = this.checkpoints.filter(c => c.x < this.gridW && c.y < this.gridH);
-    this.starts      = this.starts.filter(s => s.x < this.gridW && s.y < this.gridH);
-    // Rimuovi muri fuori bounds
-    for (const k of this.walls) {
-      const [x,y] = k.split(',').map(Number);
-      if (x >= this.gridW || y >= this.gridH) this.walls.delete(k);
-    }
+  _resize(w,h){
+    this.gridW=Math.max(4,Math.min(24,w));this.gridH=Math.max(4,Math.min(24,h));
+    canvas.width=this.gridW*this.cellSize;canvas.height=this.gridH*this.cellSize;
+    for(const k of Object.keys(this.cells)){const[x,y]=k.split(',').map(Number);if(x>=this.gridW||y>=this.gridH)delete this.cells[k];}
+    this.lasers=this.lasers.filter(l=>l.x<this.gridW&&l.y<this.gridH);
+    this.checkpoints=this.checkpoints.filter(c=>c.x<this.gridW&&c.y<this.gridH);
+    this.starts=this.starts.filter(s=>s.x<this.gridW&&s.y<this.gridH);
+    for(const k of this.walls){const[x,y]=k.split(',').map(Number);if(x>=this.gridW||y>=this.gridH)this.walls.delete(k);}
     this.render();
   },
-
-  // ── Canvas events ──────────────────────────────────────────────────────
-  _bindEvents() {
-    canvas.addEventListener('click', (e) => this._onClick(e));
-    canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); this._onRightClick(e); });
-
-    document.getElementById('btn-resize').addEventListener('click', () => {
-      this._resize(+document.getElementById('inp-w').value, +document.getElementById('inp-h').value);
-    });
-    document.getElementById('inp-name').addEventListener('input', (e) => { this.mapName = e.target.value.trim() || 'new_map'; });
-    document.getElementById('btn-export').addEventListener('click', () => this._export());
-    document.getElementById('btn-import').addEventListener('click', () => document.getElementById('file-import').click());
-    document.getElementById('file-import').addEventListener('change', (e) => this._import(e));
-    document.getElementById('btn-clear').addEventListener('click', () => { if(confirm('Reset completo della mappa?')) this._clear(); });
+  _bind(){
+    canvas.addEventListener('click',e=>this._onClick(e));
+    canvas.addEventListener('contextmenu',e=>{e.preventDefault();this._onRC(e);});
+    document.getElementById('btn-resize').addEventListener('click',()=>this._resize(+document.getElementById('inp-w').value,+document.getElementById('inp-h').value));
+    document.getElementById('inp-name').addEventListener('input',e=>{this.mapName=e.target.value.trim()||'new_map';});
+    document.getElementById('btn-export').addEventListener('click',()=>this._export());
+    document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('file-import').click());
+    document.getElementById('file-import').addEventListener('change',e=>this._import(e));
+    document.getElementById('btn-clear').addEventListener('click',()=>{if(confirm('Reset?'))this._clear();});
   },
-
-  _cellAt(e) {
-    const r = canvas.getBoundingClientRect();
-    const cx = Math.floor((e.clientX - r.left) / this.cellSize);
-    const cy = Math.floor((e.clientY - r.top)  / this.cellSize);
-    if (cx < 0 || cy < 0 || cx >= this.gridW || cy >= this.gridH) return null;
-    // Calcola anche il quadrante per i muri
-    const lx = (e.clientX - r.left) - cx * this.cellSize;
-    const ly = (e.clientY - r.top)  - cy * this.cellSize;
-    const S = this.cellSize;
-    let wallSide = null;
-    if      (ly < S * 0.25) wallSide = 'N';
-    else if (ly > S * 0.75) wallSide = 'S';
-    else if (lx < S * 0.25) wallSide = 'W';
-    else if (lx > S * 0.75) wallSide = 'E';
-    return { cx, cy, wallSide };
+  _cAt(e){
+    const r=canvas.getBoundingClientRect(),S=this.cellSize;
+    const cx=Math.floor((e.clientX-r.left)/S),cy=Math.floor((e.clientY-r.top)/S);
+    if(cx<0||cy<0||cx>=this.gridW||cy>=this.gridH)return null;
+    const lx=(e.clientX-r.left)-cx*S,ly=(e.clientY-r.top)-cy*S;
+    let ws=null;if(ly<S*0.25)ws='N';else if(ly>S*0.75)ws='S';else if(lx<S*0.25)ws='W';else if(lx>S*0.75)ws='E';
+    return{cx,cy,ws};
   },
-
-  _onClick(e) {
-    const c = this._cellAt(e);
-    if (!c) return;
-    const { cx, cy, wallSide } = c;
-    const key = `${cx},${cy}`;
-
-    switch (this.tool) {
-      case 'select':
-        this.selX = cx; this.selY = cy;
-        this._showProps(); this.render(); return;
-
-      case 'floor':
-        delete this.cells[key];
-        this.lasers = this.lasers.filter(l => !(l.x===cx && l.y===cy));
-        this.checkpoints = this.checkpoints.filter(cp => !(cp.x===cx && cp.y===cy));
-        this.starts = this.starts.filter(s => !(s.x===cx && s.y===cy));
-        break;
-
-      case 'eraser':
-        delete this.cells[key];
-        this.lasers = this.lasers.filter(l => !(l.x===cx && l.y===cy));
-        this.checkpoints = this.checkpoints.filter(cp => !(cp.x===cx && cp.y===cy));
-        this.starts = this.starts.filter(s => !(s.x===cx && s.y===cy));
-        for (const d of DIRS) this.walls.delete(`${cx},${cy},${d}`);
-        break;
-
-      case 'wall':
-        if (wallSide) {
-          const wk = `${cx},${cy},${wallSide}`;
-          if (this.walls.has(wk)) this.walls.delete(wk); else this.walls.add(wk);
-        }
-        break;
-
-      case 'checkpoint':
-        if (this.checkpoints.find(cp => cp.x===cx && cp.y===cy)) {
-          this.checkpoints = this.checkpoints.filter(cp => !(cp.x===cx && cp.y===cy));
-          this._renumberCheckpoints();
-        } else if (this.checkpoints.length < 3) {
-          this.checkpoints.push({ x: cx, y: cy, order: this.checkpoints.length + 1 });
-        }
-        break;
-
-      case 'start':
-        if (this.starts.find(s => s.x===cx && s.y===cy)) {
-          this.starts = this.starts.filter(s => !(s.x===cx && s.y===cy));
-        } else if (this.starts.length < 6) {
-          this.starts.push({ x: cx, y: cy, dir: this.paintDir });
-        }
-        break;
-
-      case 'laser':
-        const existing = this.lasers.find(l => l.x===cx && l.y===cy);
-        if (existing) {
-          this.lasers = this.lasers.filter(l => !(l.x===cx && l.y===cy));
-        } else {
-          // v6.9 M2: usa forza dal brushSettings
-          this.lasers.push({ x: cx, y: cy, dir: this.paintDir, strength: this.brushSettings.laserStrength });
-        }
-        break;
-
+  _onClick(e){
+    const c=this._cAt(e);if(!c)return;const{cx,cy,ws}=c,key=`${cx},${cy}`,tool=this.tool;
+    if(!tool){this.selX=cx;this.selY=cy;this._showProps();this.render();return;}
+    switch(tool){
+      case'wall':if(ws){const wk=`${cx},${cy},${ws}`;if(this.walls.has(wk))this.walls.delete(wk);else this.walls.add(wk);}break;
+      case'checkpoint':
+        if(this.checkpoints.find(p=>p.x===cx&&p.y===cy)){this.checkpoints=this.checkpoints.filter(p=>!(p.x===cx&&p.y===cy));this._renum();}
+        else if(this.checkpoints.length<3)this.checkpoints.push({x:cx,y:cy,order:this.checkpoints.length+1});break;
+      case'start':
+        if(this.starts.find(s=>s.x===cx&&s.y===cy))this.starts=this.starts.filter(s=>!(s.x===cx&&s.y===cy));
+        else if(this.starts.length<6)this.starts.push({x:cx,y:cy,dir:this.brushDir});break;
+      case'laser':{
+        const ex=this.lasers.find(l=>l.x===cx&&l.y===cy);
+        if(ex)this.lasers=this.lasers.filter(l=>!(l.x===cx&&l.y===cy));
+        else this.lasers.push({x:cx,y:cy,dir:this.brushDir,strength:this.brushLaserStr});break;}
       default:
-        // Celle con tipo
-        this.cells[key] = this._makeCell(this.tool);
-        // Rimuovi laser/checkpoint/start sovrapposti
-        this.lasers = this.lasers.filter(l => !(l.x===cx && l.y===cy));
-        this.checkpoints = this.checkpoints.filter(cp => !(cp.x===cx && cp.y===cy));
-        this.starts = this.starts.filter(s => !(s.x===cx && s.y===cy));
-        break;
+        this.cells[key]=this._mc(tool);
+        this.lasers=this.lasers.filter(l=>!(l.x===cx&&l.y===cy));
+        this.checkpoints=this.checkpoints.filter(p=>!(p.x===cx&&p.y===cy));
+        this.starts=this.starts.filter(s=>!(s.x===cx&&s.y===cy));break;
     }
-    this.selX = cx; this.selY = cy;
-    this._showProps(); this.render(); this._updateStats();
+    this.selX=cx;this.selY=cy;this._showProps();this.render();this._stats();
   },
-
-  _onRightClick(e) {
-    const c = this._cellAt(e);
-    if (!c) return;
-    // Right click = cancella tutto sulla cella
-    const key = `${c.cx},${c.cy}`;
-    delete this.cells[key];
-    this.lasers = this.lasers.filter(l => !(l.x===c.cx && l.y===c.cy));
-    this.checkpoints = this.checkpoints.filter(cp => !(cp.x===c.cx && cp.y===c.cy));
-    this.starts = this.starts.filter(s => !(s.x===c.cx && s.y===c.cy));
-    for (const d of DIRS) this.walls.delete(`${c.cx},${c.cy},${d}`);
-    this._renumberCheckpoints();
-    this.selX = c.cx; this.selY = c.cy;
-    this._showProps(); this.render(); this._updateStats();
+  _onRC(e){
+    const c=this._cAt(e);if(!c)return;const key=`${c.cx},${c.cy}`;
+    delete this.cells[key];this.lasers=this.lasers.filter(l=>!(l.x===c.cx&&l.y===c.cy));
+    this.checkpoints=this.checkpoints.filter(p=>!(p.x===c.cx&&p.y===c.cy));
+    this.starts=this.starts.filter(s=>!(s.x===c.cx&&s.y===c.cy));
+    for(const d of DIRS)this.walls.delete(`${c.cx},${c.cy},${d}`);
+    this._renum();this.selX=c.cx;this.selY=c.cy;this._showProps();this.render();this._stats();
   },
-
-  _makeCell(type) {
-    const c = { type };
-    const bs = this.brushSettings;
-    // v6.9 M2: usa le impostazioni persistenti del pennello
-    if (['conveyor','express_conveyor','push_panel'].includes(type)) c.dir = this.paintDir;
-    if (type === 'conveyor_turn') { c.from = bs.from; c.to = bs.to; c.express = bs.express; }
-    if (type === 'push_panel') c.activeRegisters = [...bs.activeRegisters];
+  _mc(tid){
+    const c={};
+    if(['turn_r','turn_l','eturn_r','eturn_l'].includes(tid)){
+      c.type='conveyor_turn';c.express=tid.startsWith('e');
+      const side=tid.endsWith('_r')?'right':'left';
+      const ft=fromTo(this.brushDir,side);c.from=ft.from;c.to=ft.to;return c;
+    }
+    c.type=tid;
+    if(['conveyor','express_conveyor','push_panel'].includes(tid))c.dir=this.brushDir;
+    if(tid==='push_panel')c.activeRegisters=[...this.brushActiveRegs];
     return c;
   },
+  _renum(){this.checkpoints.forEach((c,i)=>c.order=i+1);},
 
-  _renumberCheckpoints() {
-    this.checkpoints.forEach((cp, i) => cp.order = i + 1);
+  _showProps(){
+    const p=document.getElementById('props');
+    if(this.selX<0){p.innerHTML='<div class="prop-hint">Seleziona uno strumento, poi clicca sulla griglia.</div>';return;}
+    const cx=this.selX,cy=this.selY,key=`${cx},${cy}`,cell=this.cells[key];
+    const laser=this.lasers.find(l=>l.x===cx&&l.y===cy);
+    const cp=this.checkpoints.find(c=>c.x===cx&&c.y===cy);
+    const st=this.starts.find(s=>s.x===cx&&s.y===cy);
+    const cw=DIRS.filter(d=>this.walls.has(`${cx},${cy},${d}`));
+    let dt='vuota';
+    if(cell){dt=cell.type==='conveyor_turn'?(cell.express?'nastro curva 2x':'nastro curva 1x'):cell.type;}
+    else if(laser)dt='laser';else if(cp)dt='checkpoint';else if(st)dt='partenza';
+    let h=`<div class="prop-title">Cella (${cx}, ${cy})</div>`;
+    h+=`<div class="prop-row"><span class="prop-label">Tipo</span><span class="prop-value">${dt}</span></div>`;
+    if(cell&&['conveyor','express_conveyor','push_panel'].includes(cell.type)){
+      h+=`<div class="prop-row"><span class="prop-label">Direzione</span></div>`+this._dg(cell.dir,'celldir');
+    }
+    if(cell?.type==='conveyor_turn'){
+      const ts=detectSide(cell.from,cell.to);
+      h+=`<div class="prop-row"><span class="prop-label">Uscita</span></div>`+this._dg(cell.to,'turnout');
+      h+=`<div class="prop-row"><span class="prop-label">Curva</span></div>`;
+      h+=`<div class="turn-toggles"><button class="turn-btn ${ts==='left'?'active':''}" data-turn="left">← SX</button><button class="turn-btn ${ts==='right'?'active':''}" data-turn="right">DX →</button></div>`;
+      h+=`<div class="prop-row"><span class="prop-label">Velocità</span><button class="turn-btn ${!cell.express?'active':''}" data-action="sp1">1x</button><button class="turn-btn ${cell.express?'active':''}" data-action="sp2">2x</button></div>`;
+    }
+    if(cell?.type==='push_panel'){
+      h+=`<div class="prop-row"><span class="prop-label">Registri</span></div><div class="reg-toggles">`;
+      for(let i=1;i<=5;i++)h+=`<button class="reg-btn ${(cell.activeRegisters||[]).includes(i)?'active':''}" data-reg="${i}">P${i}</button>`;
+      h+=`</div>`;
+    }
+    if(laser){
+      h+=`<div class="prop-row"><span class="prop-label">Dir laser</span></div>`+this._dg(laser.dir,'laserdir');
+      h+=`<div class="prop-row"><span class="prop-label">Forza</span><input class="str-input" type="number" min="1" max="3" value="${laser.strength}" data-action="lstr"/></div>`;
+    }
+    if(st){h+=`<div class="prop-row"><span class="prop-label">Direzione</span></div>`+this._dg(st.dir,'startdir');}
+    if(cp){h+=`<div class="prop-row"><span class="prop-label">Ordine</span><span class="prop-value">#${cp.order}</span></div>`;}
+    h+=`<div class="prop-row" style="margin-top:8px"><span class="prop-label">Muri</span></div><div class="wall-toggles">`;
+    for(const d of DIRS)h+=`<button class="wall-btn ${cw.includes(d)?'active':''}" data-wall="${d}">${d}</button>`;
+    h+=`</div>`;
+    p.innerHTML=h;this._bpe(cx,cy);
+  },
+  _dg(ad,g){
+    const pos={N:[1,0],W:[0,1],E:[2,1],S:[1,2]};let h='<div class="dir-grid">';
+    for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+      const d=Object.keys(pos).find(k=>pos[k][0]===c&&pos[k][1]===r);
+      if(d)h+=`<button class="dir-btn ${ad===d?'active':''}" data-dirgroup="${g}" data-dir="${d}">${DA[d]}</button>`;
+      else if(r===1&&c===1)h+=`<div class="dir-btn center">●</div>`;else h+=`<div></div>`;
+    }
+    return h+'</div>';
+  },
+  _bpe(cx,cy){
+    const key=`${cx},${cy}`;
+    document.querySelectorAll('.wall-btn[data-wall]').forEach(b=>b.addEventListener('click',()=>{
+      const wk=`${cx},${cy},${b.dataset.wall}`;if(this.walls.has(wk))this.walls.delete(wk);else this.walls.add(wk);
+      this._showProps();this.render();this._stats();
+    }));
+    document.querySelectorAll('.dir-btn[data-dirgroup]').forEach(b=>b.addEventListener('click',()=>{
+      const g=b.dataset.dirgroup,d=b.dataset.dir;
+      if(g==='celldir'&&this.cells[key]){this.cells[key].dir=d;this.brushDir=d;}
+      if(g==='turnout'&&this.cells[key]){const s=detectSide(this.cells[key].from,this.cells[key].to);const ft=fromTo(d,s);this.cells[key].from=ft.from;this.cells[key].to=ft.to;this.brushDir=d;}
+      if(g==='laserdir'){const l=this.lasers.find(l=>l.x===cx&&l.y===cy);if(l)l.dir=d;this.brushDir=d;}
+      if(g==='startdir'){const s=this.starts.find(s=>s.x===cx&&s.y===cy);if(s)s.dir=d;this.brushDir=d;}
+      this._showProps();this.render();
+    }));
+    document.querySelectorAll('.turn-btn[data-turn]').forEach(b=>b.addEventListener('click',()=>{
+      const cell=this.cells[key];if(!cell)return;const ns=b.dataset.turn;
+      const ft=fromTo(cell.to,ns);cell.from=ft.from;cell.to=ft.to;this.brushTurnSide=ns;
+      this._showProps();this.render();
+    }));
+    document.querySelector('[data-action="sp1"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=false;this._showProps();this.render();});
+    document.querySelector('[data-action="sp2"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=true;this._showProps();this.render();});
+    document.querySelectorAll('.reg-btn[data-reg]').forEach(b=>b.addEventListener('click',()=>{
+      const cell=this.cells[key];if(!cell)return;const r=+b.dataset.reg;
+      if(!cell.activeRegisters)cell.activeRegisters=[];const idx=cell.activeRegisters.indexOf(r);
+      if(idx>=0)cell.activeRegisters.splice(idx,1);else cell.activeRegisters.push(r);
+      cell.activeRegisters.sort();this.brushActiveRegs=[...cell.activeRegisters];this._showProps();this.render();
+    }));
+    const si=document.querySelector('[data-action="lstr"]');
+    if(si)si.addEventListener('change',()=>{const l=this.lasers.find(l=>l.x===cx&&l.y===cy);const v=Math.max(1,Math.min(3,+si.value));if(l)l.strength=v;this.brushLaserStr=v;});
   },
 
-  // ── Properties panel ───────────────────────────────────────────────────
-  _showProps() {
-    const p = document.getElementById('props');
-    if (this.selX < 0) {
-      // v6.9 M2: mostra riepilogo impostazioni pennello anche senza selezione
-      const bs = this.brushSettings;
-      let html = '<div class="prop-hint">Clicca una cella per modificarla.</div>';
-      html += `<div style="margin-top:8px"><div class="prop-title">🧭 Direzione piazzamento</div></div>`;
-      html += `<div style="font-size:0.65rem;color:var(--text2);margin-bottom:4px">Prossima cella orientata: <strong style="color:var(--accent2)">${DIR_ARROW[this.paintDir]} ${this.paintDir}</strong></div>`;
-      html += this._dirGridHTML(this.paintDir, 'paintdir');
-      html += `<div style="margin-top:10px"><div class="prop-title">Pennello ricorda</div></div>`;
-      html += `<div class="prop-hint" style="font-size:0.65rem;line-height:1.6">`;
-      html += `Curva: ${DIR_ARROW[bs.from]}→${DIR_ARROW[bs.to]} ${bs.express?'(2x)':'(1x)'}<br>`;
-      html += `Pistone: P${bs.activeRegisters.join(',P')}<br>`;
-      html += `Laser: forza ${bs.laserStrength}`;
-      html += `</div>`;
-      p.innerHTML = html;
-      // Bind paintdir buttons anche qui
-      document.querySelectorAll('.dir-btn[data-dirgroup="paintdir"]').forEach(b => {
-        b.addEventListener('click', () => { this.paintDir = b.dataset.dir; this._showProps(); });
-      });
-      return;
+  // ── Rendering ──
+  render(){
+    const S=this.cellSize,W=this.gridW,H=this.gridH;ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const px=x*S,py=y*S,fk=(x+y)%2===0?'floor_a':'floor_b',img=TI[fk];
+      if(img?.complete&&img.naturalWidth>0)ctx.drawImage(img,px,py,S,S);
+      else{ctx.fillStyle=(x+y)%2===0?'#1c2128':'#1a1e26';ctx.fillRect(px,py,S,S);}
+      ctx.strokeStyle='#21262d';ctx.lineWidth=0.5;ctx.strokeRect(px,py,S,S);
     }
-    const cx = this.selX, cy = this.selY, key = `${cx},${cy}`;
-    const cell = this.cells[key];
-    const laser = this.lasers.find(l => l.x===cx && l.y===cy);
-    const cp = this.checkpoints.find(c => c.x===cx && c.y===cy);
-    const st = this.starts.find(s => s.x===cx && s.y===cy);
-    const cellWalls = DIRS.filter(d => this.walls.has(`${cx},${cy},${d}`));
-
-    let html = `<div class="prop-title">Cella (${cx}, ${cy})</div>`;
-    const displayType = cell?.type === 'conveyor_turn' ? (cell.express ? 'nastro curvo 2x' : 'nastro curvo') : (cell?.type ?? (laser ? 'laser' : cp ? 'checkpoint' : st ? 'start' : 'floor'));
-    html += `<div class="prop-row"><span class="prop-label">Tipo</span><span class="prop-value">${displayType}</span></div>`;
-
-    // Direzione (per celle direzionali)
-    if (cell && ['conveyor','express_conveyor','push_panel'].includes(cell.type)) {
-      html += `<div class="prop-row"><span class="prop-label">Direzione</span></div>`;
-      html += this._dirGridHTML(cell.dir, 'celldir');
-    }
-
-    // Nastro curvo
-    if (cell?.type === 'conveyor_turn') {
-      html += `<div class="prop-row"><span class="prop-label">Da (from)</span></div>`;
-      html += this._dirGridHTML(cell.from, 'turnfrom');
-      html += `<div class="prop-row"><span class="prop-label">A (to)</span></div>`;
-      html += this._dirGridHTML(cell.to, 'turnto');
-      html += `<div class="prop-row"><span class="prop-label">Express</span>
-        <button class="wall-btn ${cell.express?'active':''}" data-action="toggle-express">${cell.express?'Sì':'No'}</button></div>`;
-    }
-
-    // Push panel: registri attivi
-    if (cell?.type === 'push_panel') {
-      html += `<div class="prop-row"><span class="prop-label">Registri</span></div>`;
-      html += `<div class="reg-toggles">`;
-      for (let i = 1; i <= 5; i++) {
-        const active = (cell.activeRegisters || []).includes(i);
-        html += `<button class="reg-btn ${active?'active':''}" data-reg="${i}">P${i}</button>`;
-      }
-      html += `</div>`;
-    }
-
-    // Laser
-    if (laser) {
-      html += `<div class="prop-row"><span class="prop-label">Dir laser</span></div>`;
-      html += this._dirGridHTML(laser.dir, 'laserdir');
-      html += `<div class="prop-row"><span class="prop-label">Forza</span><input class="str-input" type="number" min="1" max="3" value="${laser.strength}" data-action="laser-str"/></div>`;
-    }
-
-    // Start
-    if (st) {
-      html += `<div class="prop-row"><span class="prop-label">Dir start</span></div>`;
-      html += this._dirGridHTML(st.dir, 'startdir');
-    }
-
-    // Checkpoint
-    if (cp) {
-      html += `<div class="prop-row"><span class="prop-label">Ordine</span><span class="prop-value">#${cp.order}</span></div>`;
-    }
-
-    // Muri
-    html += `<div class="prop-row" style="margin-top:8px"><span class="prop-label">Muri</span></div>`;
-    html += `<div class="wall-toggles">`;
-    for (const d of DIRS) {
-      html += `<button class="wall-btn ${cellWalls.includes(d)?'active':''}" data-wall="${d}">${d}</button>`;
-    }
-    html += `</div>`;
-
-    // v6.9 M3: etichetta direzione più chiara con indicazione visiva
-    html += `<div style="margin-top:12px"><div class="prop-title">🧭 Direzione piazzamento</div></div>`;
-    html += `<div style="font-size:0.65rem;color:var(--text2);margin-bottom:4px">Nuove celle verranno orientate: <strong style="color:var(--accent2)">${DIR_ARROW[this.paintDir]} ${this.paintDir}</strong></div>`;
-    html += this._dirGridHTML(this.paintDir, 'paintdir');
-
-    p.innerHTML = html;
-    this._bindPropsEvents(cx, cy);
+    for(const[k,cell]of Object.entries(this.cells)){const[x,y]=k.split(',').map(Number);this._dc(x,y,cell);}
+    for(const cp of this.checkpoints)this._dcp(cp);
+    for(let i=0;i<this.starts.length;i++)this._ds(this.starts[i],i+1);
+    for(const l of this.lasers)this._dl(l);
+    for(const wk of this.walls){const[x,y,s]=wk.split(',');this._dw(+x,+y,s);}
+    if(this.selX>=0&&this.selY>=0){ctx.strokeStyle='rgba(88,166,255,0.7)';ctx.lineWidth=2;ctx.strokeRect(this.selX*S+1,this.selY*S+1,S-2,S-2);}
   },
-
-  _dirGridHTML(activeDir, group) {
-    const pos = { N:[1,0], W:[0,1], E:[2,1], S:[1,2] };
-    let html = `<div class="dir-grid">`;
-    for (let r = 0; r < 3; r++) {
-      for (let c = 0; c < 3; c++) {
-        const dir = Object.keys(pos).find(d => pos[d][0]===c && pos[d][1]===r);
-        if (dir) {
-          html += `<button class="dir-btn ${activeDir===dir?'active':''}" data-dirgroup="${group}" data-dir="${dir}">${DIR_ARROW[dir]}</button>`;
-        } else if (r===1 && c===1) {
-          html += `<div class="dir-btn center">●</div>`;
-        } else {
-          html += `<div></div>`;
-        }
-      }
-    }
-    return html + `</div>`;
-  },
-
-  _bindPropsEvents(cx, cy) {
-    const key = `${cx},${cy}`;
-    // Muri
-    document.querySelectorAll('.wall-btn[data-wall]').forEach(b => {
-      b.addEventListener('click', () => {
-        const wk = `${cx},${cy},${b.dataset.wall}`;
-        if (this.walls.has(wk)) this.walls.delete(wk); else this.walls.add(wk);
-        this._showProps(); this.render(); this._updateStats();
-      });
-    });
-    // Direzione celle
-    document.querySelectorAll('.dir-btn[data-dirgroup]').forEach(b => {
-      b.addEventListener('click', () => {
-        const g = b.dataset.dirgroup, d = b.dataset.dir;
-        if (g === 'celldir' && this.cells[key]) { this.cells[key].dir = d; this.brushSettings.dir = d; }
-        if (g === 'turnfrom' && this.cells[key]) { this.cells[key].from = d; this.brushSettings.from = d; }
-        if (g === 'turnto' && this.cells[key]) { this.cells[key].to = d; this.brushSettings.to = d; }
-        if (g === 'laserdir') { const l = this.lasers.find(l=>l.x===cx&&l.y===cy); if(l) l.dir = d; }
-        if (g === 'startdir') { const s = this.starts.find(s=>s.x===cx&&s.y===cy); if(s) s.dir = d; }
-        if (g === 'paintdir') this.paintDir = d;
-        this._showProps(); this.render();
-      });
-    });
-    // Registri push — v6.9 M2: aggiorna anche brushSettings
-    document.querySelectorAll('.reg-btn[data-reg]').forEach(b => {
-      b.addEventListener('click', () => {
-        const cell = this.cells[key]; if (!cell) return;
-        const r = +b.dataset.reg;
-        if (!cell.activeRegisters) cell.activeRegisters = [];
-        const idx = cell.activeRegisters.indexOf(r);
-        if (idx >= 0) cell.activeRegisters.splice(idx, 1); else cell.activeRegisters.push(r);
-        cell.activeRegisters.sort();
-        this.brushSettings.activeRegisters = [...cell.activeRegisters];
-        this._showProps(); this.render();
-      });
-    });
-    // Forza laser — v6.9 M2: persisti in brushSettings
-    const strIn = document.querySelector('[data-action="laser-str"]');
-    if (strIn) strIn.addEventListener('change', () => {
-      const l = this.lasers.find(l=>l.x===cx&&l.y===cy);
-      const v = Math.max(1, Math.min(3, +strIn.value));
-      if (l) l.strength = v;
-      this.brushSettings.laserStrength = v;
-    });
-    // Toggle express nastro curvo — v6.9 M2: persisti in brushSettings
-    const expBtn = document.querySelector('[data-action="toggle-express"]');
-    if (expBtn) expBtn.addEventListener('click', () => {
-      const cell = this.cells[key]; if(cell) { cell.express = !cell.express; this.brushSettings.express = cell.express; }
-      this._showProps(); this.render();
-    });
-  },
-
-  // ── Rendering ──────────────────────────────────────────────────────────
-  render() {
-    const S = this.cellSize, W = this.gridW, H = this.gridH;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Griglia base — con tile PNG pavimento
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const px = x*S, py = y*S;
-      const floorKey = (x+y)%2===0 ? 'floor_a' : 'floor_b';
-      const img = TILE_IMGS[floorKey];
-      if (img?.complete && img.naturalWidth > 0) {
-        ctx.drawImage(img, px, py, S, S);
-      } else {
-        ctx.fillStyle = (x+y)%2===0 ? '#1c2128' : '#1a1e26';
-        ctx.fillRect(px, py, S, S);
-      }
-      ctx.strokeStyle = '#21262d'; ctx.lineWidth = 0.5;
-      ctx.strokeRect(px, py, S, S);
-    }
-
-    // Celle speciali
-    for (const [key, cell] of Object.entries(this.cells)) {
-      const [cx,cy] = key.split(',').map(Number);
-      this._drawCell(cx, cy, cell);
-    }
-
-    // Checkpoint
-    for (const cp of this.checkpoints) this._drawCheckpoint(cp);
-    // Start
-    for (let i = 0; i < this.starts.length; i++) this._drawStart(this.starts[i], i+1);
-    // Laser
-    for (const l of this.lasers) this._drawLaser(l);
-    // Muri
-    for (const wk of this.walls) {
-      const [x,y,side] = wk.split(',');
-      this._drawWall(+x, +y, side);
-    }
-    // Selezione
-    if (this.selX >= 0 && this.selY >= 0) {
-      ctx.strokeStyle = 'rgba(88,166,255,0.7)'; ctx.lineWidth = 2;
-      ctx.strokeRect(this.selX*S+1, this.selY*S+1, S-2, S-2);
-    }
-  },
-
-  _drawCell(cx, cy, cell) {
-    const S = this.cellSize, px = cx*S, py = cy*S;
-
-    // ── NEW v6.8: Prova tile PNG per curve nastro ──────────────────────
-    if (cell.type === 'conveyor_turn') {
-      const ti = convTurnInfo(cell.from ?? 'E', cell.to ?? 'S');
-      const imgKey = cell.express
-        ? (ti.isRight ? 'exp_turn_right' : 'exp_turn_left')
-        : (ti.isRight ? 'conv_turn_right' : 'conv_turn_left');
-      const img = TILE_IMGS[imgKey];
-      if (img?.complete && img.naturalWidth > 0) {
-        ctx.save(); ctx.translate(px+S/2, py+S/2); ctx.rotate(ti.rotRad);
-        ctx.drawImage(img, -S/2, -S/2, S, S); ctx.restore();
-        return;
-      }
-    }
-
-    // ── Prova a disegnare il tile PNG per celle standard ────────────────
-    const tileKey = {
-      pit:'pit', conveyor:'conveyor', express_conveyor:'express',
-      gear_cw:'gear_cw', gear_ccw:'gear_ccw', recharge:'recharge',
-      push_panel:'push_panel',
-    }[cell.type];
-
-    if (tileKey) {
-      const img = TILE_IMGS[tileKey];
-      if (img?.complete && img.naturalWidth > 0) {
-        const rot = (DIR_ROT[cell.dir ?? 'E'] ?? 0) + (TILE_ROT_FIX[tileKey] ?? 0);
-        ctx.save();
-        ctx.translate(px+S/2, py+S/2);
-        if (['conveyor','express_conveyor','push_panel'].includes(cell.type)) ctx.rotate(rot);
-        ctx.drawImage(img, -S/2, -S/2, S, S);
-        ctx.restore();
-        // Overlay testo per push_panel (registri attivi)
-        if (cell.type === 'push_panel' && cell.activeRegisters?.length) {
-          ctx.fillStyle = '#fff'; ctx.font = `bold ${S*0.18}px JetBrains Mono`;
-          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillText((cell.activeRegisters).join(','), px+S/2, py+S-2);
-        }
-        return;   // ← PNG usato, non serve il fallback canvas
-      }
-    }
-
-    // ── Fallback: disegno canvas originale (se PNG mancante) ───────────
-    const bg = CELL_COLORS[cell.type] ?? 'transparent';
-    if (bg !== 'transparent') { ctx.fillStyle = bg; ctx.fillRect(px+1, py+1, S-2, S-2); }
-
-    ctx.save(); ctx.translate(px+S/2, py+S/2);
-    switch (cell.type) {
-      case 'pit':
-        ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(0,0,S*0.35,0,Math.PI*2); ctx.fill();
-        ctx.strokeStyle='#3d1010'; ctx.lineWidth=2; ctx.stroke();
-        break;
-      case 'conveyor': case 'express_conveyor':
-        ctx.rotate(DIR_ROT[cell.dir??'E']);
-        ctx.fillStyle = cell.type==='express_conveyor'?'#e3b341':'#4b5563';
-        this._arrow(ctx, 0, 0, S*0.28);
-        if (cell.type==='express_conveyor') { this._arrow(ctx, -S*0.18, 0, S*0.17); }
-        break;
-      case 'conveyor_turn':
-        ctx.fillStyle = cell.express?'#e3b341':'#4b5563';
-        const fromA=DIR_ROT[cell.from??'S']+Math.PI, toA=DIR_ROT[cell.to??'E'];
-        ctx.beginPath(); ctx.moveTo(Math.cos(fromA)*S*0.35, Math.sin(fromA)*S*0.35);
-        ctx.quadraticCurveTo(0, 0, Math.cos(toA)*S*0.35, Math.sin(toA)*S*0.35);
-        ctx.lineWidth=3; ctx.strokeStyle=ctx.fillStyle; ctx.stroke();
-        ctx.save(); ctx.translate(Math.cos(toA)*S*0.3, Math.sin(toA)*S*0.3); ctx.rotate(toA);
-        this._arrow(ctx, 0, 0, S*0.12); ctx.restore();
-        break;
-      case 'gear_cw': case 'gear_ccw':
-        ctx.strokeStyle='#5b6794'; ctx.lineWidth=2.5;
-        ctx.beginPath(); ctx.arc(0,0,S*0.27,0,Math.PI*2); ctx.stroke();
-        ctx.fillStyle='#8892b0'; ctx.font=`bold ${S*0.38}px system-ui`;
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(cell.type==='gear_cw'?'↻':'↺', 0, 1);
-        break;
-      case 'recharge':
-        ctx.strokeStyle='#3fb950'; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.arc(0,0,S*0.3,0,Math.PI*2); ctx.stroke();
-        ctx.fillStyle='#3fb950'; ctx.font=`bold ${S*0.4}px system-ui`;
-        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⚡',0,1);
-        break;
-      case 'push_panel':
-        ctx.rotate(DIR_ROT[cell.dir??'E']);
-        ctx.fillStyle='#3b82f6'; this._arrow(ctx, 0, 0, S*0.22);
-        ctx.font=`bold ${S*0.18}px JetBrains Mono`; ctx.textAlign='center'; ctx.textBaseline='top';
-        ctx.fillStyle='#8b949e';
-        ctx.fillText((cell.activeRegisters||[]).join(','), 0, S*0.22);
-        break;
+  _dc(cx,cy,cell){
+    const S=this.cellSize,px=cx*S,py=cy*S;
+    if(cell.type==='conveyor_turn'){const ti=cti(cell.from??'E',cell.to??'S');const ik=cell.express?(ti.isRight?'exp_turn_right':'exp_turn_left'):(ti.isRight?'conv_turn_right':'conv_turn_left');const img=TI[ik];if(img?.complete&&img.naturalWidth>0){ctx.save();ctx.translate(px+S/2,py+S/2);ctx.rotate(ti.rotRad);ctx.drawImage(img,-S/2,-S/2,S,S);ctx.restore();return;}}
+    const tk={pit:'pit',conveyor:'conveyor',express_conveyor:'express',gear_cw:'gear_cw',gear_ccw:'gear_ccw',recharge:'recharge',push_panel:'push_panel'}[cell.type];
+    if(tk){const img=TI[tk];if(img?.complete&&img.naturalWidth>0){const rot=(DR[cell.dir??'E']??0)+(TRF[tk]??0);ctx.save();ctx.translate(px+S/2,py+S/2);if(['conveyor','express_conveyor','push_panel'].includes(cell.type))ctx.rotate(rot);ctx.drawImage(img,-S/2,-S/2,S,S);ctx.restore();if(cell.type==='push_panel'&&cell.activeRegisters?.length){ctx.fillStyle='#fff';ctx.font=`bold ${S*0.18}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(cell.activeRegisters.join(','),px+S/2,py+S-2);}return;}}
+    const bg=CC[cell.type]??'transparent';if(bg!=='transparent'){ctx.fillStyle=bg;ctx.fillRect(px+1,py+1,S-2,S-2);}
+    ctx.save();ctx.translate(px+S/2,py+S/2);
+    switch(cell.type){
+      case'pit':ctx.fillStyle='#000';ctx.beginPath();ctx.arc(0,0,S*0.35,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#3d1010';ctx.lineWidth=2;ctx.stroke();break;
+      case'conveyor':case'express_conveyor':ctx.rotate(DR[cell.dir??'E']);ctx.fillStyle=cell.type==='express_conveyor'?'#e3b341':'#4b5563';this._ar(ctx,0,0,S*0.28);if(cell.type==='express_conveyor')this._ar(ctx,-S*0.18,0,S*0.17);break;
+      case'conveyor_turn':ctx.fillStyle=cell.express?'#e3b341':'#4b5563';{const fa=DR[cell.from??'S']+Math.PI,ta=DR[cell.to??'E'];ctx.beginPath();ctx.moveTo(Math.cos(fa)*S*0.35,Math.sin(fa)*S*0.35);ctx.quadraticCurveTo(0,0,Math.cos(ta)*S*0.35,Math.sin(ta)*S*0.35);ctx.lineWidth=3;ctx.strokeStyle=ctx.fillStyle;ctx.stroke();ctx.save();ctx.translate(Math.cos(ta)*S*0.3,Math.sin(ta)*S*0.3);ctx.rotate(ta);this._ar(ctx,0,0,S*0.12);ctx.restore();}break;
+      case'gear_cw':case'gear_ccw':ctx.strokeStyle='#5b6794';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(0,0,S*0.27,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#8892b0';ctx.font=`bold ${S*0.38}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cell.type==='gear_cw'?'↻':'↺',0,1);break;
+      case'recharge':ctx.strokeStyle='#3fb950';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,S*0.3,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#3fb950';ctx.font=`bold ${S*0.4}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⚡',0,1);break;
+      case'push_panel':ctx.rotate(DR[cell.dir??'E']);ctx.fillStyle='#3b82f6';this._ar(ctx,0,0,S*0.22);ctx.font=`bold ${S*0.18}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='#8b949e';ctx.fillText((cell.activeRegisters||[]).join(','),0,S*0.22);break;
     }
     ctx.restore();
   },
+  _dcp(cp){const S=this.cellSize,px=cp.x*S,py=cp.y*S;const img=TI[`cp${cp.order}`];if(img?.complete&&img.naturalWidth>0){ctx.drawImage(img,px,py,S,S);return;}const cx2=px+S/2,cy2=py+S/2,cols=['#1f6feb','#3fb950','#e3b341'];ctx.fillStyle=cols[(cp.order-1)%3];ctx.beginPath();ctx.arc(cx2,cy2,S*0.32,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${S*0.34}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cp.order,cx2,cy2+1);},
+  _ds(st,idx){const S=this.cellSize,px=st.x*S,py=st.y*S;ctx.strokeStyle='#58a6ff';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.strokeRect(px+3,py+3,S-6,S-6);ctx.setLineDash([]);ctx.fillStyle='#58a6ff';ctx.font=`bold ${S*0.22}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(`S${idx}`,px+S/2,py+S/2-4);ctx.fillText(DA[st.dir]??'↑',px+S/2,py+S/2+8);},
+  _dl(l){const S=this.cellSize,px=l.x*S,py=l.y*S;const img=TI['laser_src'];if(img?.complete&&img.naturalWidth>0){const rot=(DR[l.dir??'E']??0)+(TRF['laser_src']??0);ctx.save();ctx.translate(px+S/2,py+S/2);ctx.rotate(rot);ctx.drawImage(img,-S/2,-S/2,S,S);ctx.restore();}else{ctx.fillStyle='#f85149';ctx.beginPath();ctx.arc(px+S/2,py+S/2,5,0,Math.PI*2);ctx.fill();}const v=V[l.dir];ctx.strokeStyle='rgba(248,81,73,0.4)';ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(px+S/2,py+S/2);let ex=px+S/2+v[0]*S*8,ey=py+S/2+v[1]*S*8;ex=Math.max(0,Math.min(canvas.width,ex));ey=Math.max(0,Math.min(canvas.height,ey));ctx.lineTo(ex,ey);ctx.stroke();ctx.setLineDash([]);if(l.strength>1){ctx.fillStyle='#f85149';ctx.font=`bold ${S*0.2}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`×${l.strength}`,px+S/2,py+S/2-7);}},
+  _dw(cx,cy,side){const S=this.cellSize,px=cx*S,py=cy*S,M=1;ctx.strokeStyle='#f85149';ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();switch(side){case'N':ctx.moveTo(px+M,py+M);ctx.lineTo(px+S-M,py+M);break;case'S':ctx.moveTo(px+M,py+S-M);ctx.lineTo(px+S-M,py+S-M);break;case'E':ctx.moveTo(px+S-M,py+M);ctx.lineTo(px+S-M,py+S-M);break;case'W':ctx.moveTo(px+M,py+M);ctx.lineTo(px+M,py+S-M);break;}ctx.stroke();},
+  _ar(ctx,cx,cy,r){ctx.beginPath();ctx.moveTo(cx+r,cy);ctx.lineTo(cx-r*0.65,cy-r*0.65);ctx.lineTo(cx-r*0.3,cy);ctx.lineTo(cx-r*0.65,cy+r*0.65);ctx.closePath();ctx.fill();},
 
-  _drawCheckpoint(cp) {
-    const S=this.cellSize, px=cp.x*S, py=cp.y*S;
-    const img = TILE_IMGS[`cp${cp.order}`];
-    if (img?.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, px, py, S, S);
-      return;
-    }
-    // Fallback originale
-    const cx=px+S/2, cy=py+S/2;
-    const colors=['#1f6feb','#3fb950','#e3b341'];
-    ctx.fillStyle=colors[(cp.order-1)%3]; ctx.beginPath(); ctx.arc(cx,cy,S*0.32,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font=`bold ${S*0.34}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(cp.order, cx, cy+1);
-  },
-
-  _drawStart(st, idx) {
-    const S=this.cellSize, px=st.x*S, py=st.y*S;
-    ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
-    ctx.strokeRect(px+3, py+3, S-6, S-6); ctx.setLineDash([]);
-    ctx.fillStyle='#58a6ff'; ctx.font=`bold ${S*0.22}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(`S${idx}`, px+S/2, py+S/2-4);
-    ctx.fillText(DIR_ARROW[st.dir]??'↑', px+S/2, py+S/2+8);
-  },
-
-  _drawLaser(l) {
-    const S=this.cellSize, px=l.x*S, py=l.y*S;
-    const img = TILE_IMGS['laser_src'];
-    if (img?.complete && img.naturalWidth > 0) {
-      const rot = (DIR_ROT[l.dir ?? 'E'] ?? 0) + (TILE_ROT_FIX['laser_src'] ?? 0);
-      ctx.save(); ctx.translate(px+S/2, py+S/2); ctx.rotate(rot);
-      ctx.drawImage(img, -S/2, -S/2, S, S); ctx.restore();
-    } else {
-      ctx.fillStyle='#f85149'; ctx.beginPath(); ctx.arc(px+S/2,py+S/2,5,0,Math.PI*2); ctx.fill();
-    }
-    // Raggio tratteggiato (sempre, anche con PNG)
-    const v=VECS[l.dir]; ctx.strokeStyle='rgba(248,81,73,0.4)'; ctx.lineWidth=2; ctx.setLineDash([3,3]);
-    ctx.beginPath(); ctx.moveTo(px+S/2, py+S/2);
-    let ex=px+S/2+v[0]*S*8, ey=py+S/2+v[1]*S*8;
-    ex=Math.max(0,Math.min(canvas.width,ex)); ey=Math.max(0,Math.min(canvas.height,ey));
-    ctx.lineTo(ex,ey); ctx.stroke(); ctx.setLineDash([]);
-    if(l.strength>1){ctx.fillStyle='#f85149';ctx.font=`bold ${S*0.2}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`×${l.strength}`,px+S/2,py+S/2-7);}
-  },
-
-  _drawWall(cx, cy, side) {
-    const S=this.cellSize, px=cx*S, py=cy*S, M=1;
-    ctx.strokeStyle='#f85149'; ctx.lineWidth=4; ctx.lineCap='round';
-    ctx.beginPath();
-    switch(side){
-      case'N':ctx.moveTo(px+M,py+M);ctx.lineTo(px+S-M,py+M);break;
-      case'S':ctx.moveTo(px+M,py+S-M);ctx.lineTo(px+S-M,py+S-M);break;
-      case'E':ctx.moveTo(px+S-M,py+M);ctx.lineTo(px+S-M,py+S-M);break;
-      case'W':ctx.moveTo(px+M,py+M);ctx.lineTo(px+M,py+S-M);break;
-    }
-    ctx.stroke();
-  },
-
-  _arrow(ctx, cx, cy, r) {
-    ctx.beginPath(); ctx.moveTo(cx+r, cy);
-    ctx.lineTo(cx-r*0.65, cy-r*0.65); ctx.lineTo(cx-r*0.3, cy);
-    ctx.lineTo(cx-r*0.65, cy+r*0.65); ctx.closePath(); ctx.fill();
-  },
-
-  // ── Export/Import ──────────────────────────────────────────────────────
-  _export() {
-    const json = {
-      id: this.mapName.replace(/\s+/g,'_').toLowerCase(),
-      name: this.mapName,
-      width: this.gridW,
-      height: this.gridH,
-      startPositions: this.starts.map(s => ({ x:s.x, y:s.y, dir:s.dir })),
-      checkpoints: this.checkpoints.map(c => ({ x:c.x, y:c.y, order:c.order })),
-      cells: Object.entries(this.cells).map(([k, c]) => {
-        const [x,y] = k.split(',').map(Number);
-        // NEW v6.8: conveyor_turn con express=true → tipo express_conveyor_turn
-        let outType = c.type;
-        if (c.type === 'conveyor_turn' && c.express) outType = 'express_conveyor_turn';
-        const obj = { x, y, type: outType };
-        if (c.dir) obj.dir = c.dir;
-        if (c.from) obj.from = c.from;
-        if (c.to) obj.to = c.to;
-        // NB: express NON va in output — il tipo stesso lo indica
-        if (c.activeRegisters) obj.activeRegisters = [...c.activeRegisters];
-        return obj;
-      }),
-      walls: [...this.walls].map(wk => {
-        const [x,y,side] = wk.split(',');
-        return { x:+x, y:+y, side };
-      }),
-      lasers: this.lasers.map(l => ({ x:l.x, y:l.y, dir:l.dir, strength:l.strength })),
+  _export(){
+    const json={id:this.mapName.replace(/\s+/g,'_').toLowerCase(),name:this.mapName,width:this.gridW,height:this.gridH,
+      startPositions:this.starts.map(s=>({x:s.x,y:s.y,dir:s.dir})),
+      checkpoints:this.checkpoints.map(c=>({x:c.x,y:c.y,order:c.order})),
+      cells:Object.entries(this.cells).map(([k,c])=>{const[x,y]=k.split(',').map(Number);let ot=c.type;if(c.type==='conveyor_turn'&&c.express)ot='express_conveyor_turn';const o={x,y,type:ot};if(c.dir)o.dir=c.dir;if(c.from)o.from=c.from;if(c.to)o.to=c.to;if(c.activeRegisters)o.activeRegisters=[...c.activeRegisters];return o;}),
+      walls:[...this.walls].map(wk=>{const[x,y,s]=wk.split(',');return{x:+x,y:+y,side:s};}),
+      lasers:this.lasers.map(l=>({x:l.x,y:l.y,dir:l.dir,strength:l.strength})),
     };
-    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${json.id}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${json.id}.json`;a.click();URL.revokeObjectURL(a.href);
   },
-
-  _import(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const json = JSON.parse(ev.target.result);
-        this._loadJSON(json);
-      } catch(err) { alert('JSON non valido: ' + err.message); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+  _import(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{this._loadJSON(JSON.parse(ev.target.result));}catch(err){alert('JSON non valido: '+err.message);}};r.readAsText(f);e.target.value='';},
+  _loadJSON(json){
+    this.mapName=json.name||json.id||'imported';document.getElementById('inp-name').value=this.mapName;
+    document.getElementById('inp-w').value=json.width||12;document.getElementById('inp-h').value=json.height||12;
+    this.gridW=json.width||12;this.gridH=json.height||12;canvas.width=this.gridW*this.cellSize;canvas.height=this.gridH*this.cellSize;
+    this.cells={};for(const c of json.cells||[]){const key=`${c.x},${c.y}`;let ct=c.type,ie=!!c.express;if(c.type==='express_conveyor_turn'){ct='conveyor_turn';ie=true;}const cell={type:ct};if(c.dir)cell.dir=c.dir;if(c.from)cell.from=c.from;if(c.to)cell.to=c.to;if(ct==='conveyor_turn')cell.express=ie;if(c.activeRegisters)cell.activeRegisters=[...c.activeRegisters];this.cells[key]=cell;}
+    this.walls=new Set();for(const w of json.walls||[])this.walls.add(`${w.x},${w.y},${w.side}`);
+    this.lasers=(json.lasers||[]).map(l=>({x:l.x,y:l.y,dir:l.dir,strength:l.strength??1}));
+    this.checkpoints=(json.checkpoints||[]).map(c=>({x:c.x,y:c.y,order:c.order}));
+    this.starts=(json.startPositions||[]).map(s=>({x:s.x,y:s.y,dir:s.dir??'N'}));
+    this.selX=-1;this.selY=-1;this._setTool(null,null);this._showProps();this.render();this._stats();
   },
-
-  _loadJSON(json) {
-    this.mapName = json.name || json.id || 'imported';
-    document.getElementById('inp-name').value = this.mapName;
-    document.getElementById('inp-w').value = json.width || 12;
-    document.getElementById('inp-h').value = json.height || 12;
-    this.gridW = json.width || 12;
-    this.gridH = json.height || 12;
-    canvas.width  = this.gridW * this.cellSize;
-    canvas.height = this.gridH * this.cellSize;
-
-    this.cells = {};
-    for (const c of json.cells || []) {
-      const key = `${c.x},${c.y}`;
-      // NEW v6.8: express_conveyor_turn → conveyor_turn con express=true
-      let cellType = c.type;
-      let isExpress = !!c.express;
-      if (c.type === 'express_conveyor_turn') { cellType = 'conveyor_turn'; isExpress = true; }
-      const cell = { type: cellType };
-      if (c.dir) cell.dir = c.dir;
-      if (c.from) cell.from = c.from;
-      if (c.to) cell.to = c.to;
-      if (cellType === 'conveyor_turn') cell.express = isExpress;
-      if (c.activeRegisters) cell.activeRegisters = [...c.activeRegisters];
-      this.cells[key] = cell;
-    }
-    this.walls = new Set();
-    for (const w of json.walls || []) this.walls.add(`${w.x},${w.y},${w.side}`);
-    this.lasers = (json.lasers || []).map(l => ({ x:l.x, y:l.y, dir:l.dir, strength:l.strength??1 }));
-    this.checkpoints = (json.checkpoints || []).map(c => ({ x:c.x, y:c.y, order:c.order }));
-    this.starts = (json.startPositions || []).map(s => ({ x:s.x, y:s.y, dir:s.dir??'N' }));
-
-    this.selX = -1; this.selY = -1;
-    this._showProps(); this.render(); this._updateStats();
-  },
-
-  _clear() {
-    this.cells={}; this.walls=new Set(); this.lasers=[]; this.checkpoints=[]; this.starts=[];
-    this.selX=-1; this.selY=-1;
-    this._showProps(); this.render(); this._updateStats();
-  },
-
-  _updateStats() {
-    document.getElementById('stat-cells').textContent = Object.keys(this.cells).length;
-    document.getElementById('stat-walls').textContent = this.walls.size;
-    document.getElementById('stat-lasers').textContent = this.lasers.length;
-    document.getElementById('stat-cps').textContent = this.checkpoints.length;
-    document.getElementById('stat-starts').textContent = this.starts.length;
+  _clear(){this.cells={};this.walls=new Set();this.lasers=[];this.checkpoints=[];this.starts=[];this.selX=-1;this.selY=-1;this._showProps();this.render();this._stats();},
+  _stats(){
+    document.getElementById('stat-cells').textContent=Object.keys(this.cells).length;
+    document.getElementById('stat-walls').textContent=this.walls.size;
+    document.getElementById('stat-lasers').textContent=this.lasers.length;
+    document.getElementById('stat-cps').textContent=this.checkpoints.length;
+    document.getElementById('stat-starts').textContent=this.starts.length;
   },
 };
-
 E.init();
 </script>
 </body>
