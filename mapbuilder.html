@@ -66,6 +66,20 @@ body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--
 .active-tool-badge.show{display:flex;}
 .active-tool-badge .deselect{margin-left:auto;cursor:pointer;color:var(--text2);font-size:0.68rem;}.active-tool-badge .deselect:hover{color:var(--red);}
 canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-rendering:pixelated;}
+.btn-test{background:#1a1040;color:var(--purple);border:1.5px solid var(--purple);}
+.btn-test.active{background:var(--purple);color:#fff;}
+.test-panel{padding:10px 12px;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);background:rgba(167,139,250,0.04);}
+.test-panel .tp-title{font-size:0.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.06em;}
+.test-panel .tp-row{display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--text2);}
+.test-panel .tp-row b{color:var(--text);}
+.test-log{max-height:120px;overflow-y:auto;font-size:0.68rem;color:var(--text2);background:rgba(0,0,0,0.3);border-radius:5px;padding:6px;display:flex;flex-direction:column;gap:2px;}
+.test-log .tl-entry{padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.test-log .tl-entry:last-child{border:none;}
+.test-arrows{display:grid;grid-template:auto auto auto/auto auto auto;gap:3px;}
+.test-arrows .arr-btn{width:36px;height:36px;border:1.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;font-weight:700;}
+.test-arrows .arr-btn:hover{border-color:var(--purple);background:rgba(167,139,250,0.1);}
+.test-arrows .arr-btn:active{transform:scale(0.92);}
+.test-arrows .arr-center{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;color:var(--purple);font-weight:700;}
 .footer{display:flex;align-items:center;gap:12px;padding:8px 18px;background:var(--surface);border-top:1px solid var(--border);font-size:0.75rem;color:var(--text2);}
 .footer .stat{font-family:'JetBrains Mono',monospace;color:var(--text);}
 @media(max-width:800px){.editor{flex-direction:column;}.rpanel{width:100%;max-height:300px;border-left:none;border-top:1px solid var(--border);}}
@@ -79,16 +93,35 @@ canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-
   <div class="spacer"></div>
   <button class="btn btn-secondary" id="btn-import">📂 Importa</button>
   <button class="btn btn-green" id="btn-export">💾 Esporta</button>
+  <button class="btn btn-test" id="btn-test">🤖 Test</button>
   <button class="btn btn-red" id="btn-clear">🗑 Reset</button>
   <input type="file" id="file-import" accept=".json" style="display:none"/>
 </div>
 <div class="editor">
   <div class="canvas-area"><canvas id="canvas" width="576" height="576"></canvas></div>
   <div class="rpanel" id="rpanel">
-    <div class="mouse-guide"><span><b>SX</b> piazza</span><span><b>DX</b> cancella</span><span><b>Click vuoto</b> seleziona</span></div>
+    <div class="mouse-guide" id="mouse-guide-el"><span><b>SX</b> piazza</span><span><b>DX</b> cancella</span><span><b>Click vuoto</b> seleziona</span></div>
     <div class="active-tool-badge" id="active-tool-badge"></div>
     <div id="tool-cats"></div>
     <div class="props" id="props"><div class="prop-hint">Seleziona uno strumento, poi clicca sulla griglia.</div></div>
+    <div class="test-panel" id="test-panel" style="display:none">
+      <div class="tp-title">🤖 Modalità Test</div>
+      <div class="tp-row">Clicca sulla griglia per piazzare il robot</div>
+      <div class="tp-row">Posizione: <b id="tp-pos">—</b></div>
+      <div class="tp-row">Direzione: <b id="tp-dir">—</b></div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div class="test-arrows">
+          <div></div><button class="arr-btn" data-tdir="N">↑</button><div></div>
+          <button class="arr-btn" data-tdir="W">←</button><div class="arr-center">🤖</div><button class="arr-btn" data-tdir="E">→</button>
+          <div></div><button class="arr-btn" data-tdir="S">↓</button><div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-secondary" id="btn-test-phase" style="font-size:0.7rem;padding:5px 10px">⚙ Fase tabellone</button>
+          <button class="btn btn-secondary" id="btn-test-reset" style="font-size:0.7rem;padding:5px 10px">↺ Reset robot</button>
+        </div>
+      </div>
+      <div class="test-log" id="test-log"></div>
+    </div>
   </div>
 </div>
 <div class="footer">
@@ -101,26 +134,26 @@ canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-
 <script>
 const CATS=[
   {id:'belts',name:'Nastri',tools:[
-    {id:'conveyor',name:'Dritto 1x',img:'assets/tiles/beltForward1.png'},
-    {id:'express_conveyor',name:'Dritto 2x',img:'assets/tiles/beltForward2.png'},
-    {id:'turn_r',name:'Curva DX 1x',img:'assets/tiles/beltTurnRight1.png'},
-    {id:'turn_l',name:'Curva SX 1x',img:'assets/tiles/beltTurnLeft1.png'},
-    {id:'eturn_r',name:'Curva DX 2x',img:'assets/tiles/beltTurnRight2.png'},
-    {id:'eturn_l',name:'Curva SX 2x',img:'assets/tiles/beltTurnLeft2.png'},
+    {id:'conveyor',name:'Dritto 1x',img:'beltForward1.png'},
+    {id:'express_conveyor',name:'Dritto 2x',img:'beltForward2.png'},
+    {id:'turn_r',name:'Curva DX 1x',img:'beltTurnRight1.png'},
+    {id:'turn_l',name:'Curva SX 1x',img:'beltTurnLeft1.png'},
+    {id:'eturn_r',name:'Curva DX 2x',img:'beltTurnRight2.png'},
+    {id:'eturn_l',name:'Curva SX 2x',img:'beltTurnLeft2.png'},
   ]},
   {id:'gears',name:'Ingranaggi',tools:[
-    {id:'gear_cw',name:'Orario',img:'assets/tiles/rotationClockwise.png'},
-    {id:'gear_ccw',name:'Antiorario',img:'assets/tiles/rotationCounterClockwise.png'},
-    {id:'recharge',name:'Ricarica',img:'assets/tiles/recharge.png'},
+    {id:'gear_cw',name:'Orario',img:'rotationClockwise.png'},
+    {id:'gear_ccw',name:'Antiorario',img:'rotationCounterClockwise.png'},
+    {id:'recharge',name:'Ricarica',img:'recharge.png'},
   ]},
   {id:'hazards',name:'Ostacoli',tools:[
-    {id:'pit',name:'Buco',img:'assets/tiles/hole.png'},
-    {id:'push_panel',name:'Pistone',img:'assets/tiles/spring_on.png'},
-    {id:'laser',name:'Laser',img:'assets/tiles/Laser_A.png'},
+    {id:'pit',name:'Buco',img:'hole.png'},
+    {id:'push_panel',name:'Pistone',img:'spring_on.png'},
+    {id:'laser',name:'Laser',img:'Laser_A.png'},
     {id:'wall',name:'Muro',img:null,text:'🧱'},
   ]},
   {id:'goals',name:'Obiettivi',tools:[
-    {id:'checkpoint',name:'Checkpoint',img:'assets/tiles/Finish1.png'},
+    {id:'checkpoint',name:'Checkpoint',img:'Finish1.png'},
     {id:'start',name:'Partenza',img:null,text:'🤖'},
   ]},
 ];
@@ -134,24 +167,7 @@ const CC={floor:'transparent',pit:'#080c10',conveyor:'#1e293b',express_conveyor:
 function cti(f,t){return{isRight:RR[f]===t,rotRad:DR[f]??0};}
 function fromTo(out,side){return side==='right'?{from:OPP[RL[out]],to:out}:{from:OPP[RR[out]],to:out};}
 function detectSide(f,t){return RR[OPP[f]]===t?'right':'left';}
-const TP={
-  floor_a:'assets/tiles/pavement_A.png',
-  floor_b:'assets/tiles/pavement_B.png',
-  pit:'assets/tiles/hole.png',
-  conveyor:'assets/tiles/beltForward1.png',
-  express:'assets/tiles/beltForward2.png',
-  conv_turn_left:'assets/tiles/beltTurnLeft1.png',
-  conv_turn_right:'assets/tiles/beltTurnRight1.png',
-  exp_turn_left:'assets/tiles/beltTurnLeft2.png',
-  exp_turn_right:'assets/tiles/beltTurnRight2.png',
-  gear_cw:'assets/tiles/rotationClockwise.png',
-  gear_ccw:'assets/tiles/rotationCounterClockwise.png',
-  recharge:'assets/tiles/recharge.png',
-  push_panel:'assets/tiles/spring_on.png',
-  laser_src:'assets/tiles/Laser_A.png',
-  cp1:'assets/tiles/Finish1.png',
-  cp2:'assets/tiles/Finish2.png',
-  cp3:'assets/tiles/Finish3.png'};
+const TP={floor_a:'pavement_A.png',floor_b:'pavement_B.png',pit:'hole.png',conveyor:'beltForward1.png',express:'beltForward2.png',conv_turn_left:'beltTurnLeft1.png',conv_turn_right:'beltTurnRight1.png',exp_turn_left:'beltTurnLeft2.png',exp_turn_right:'beltTurnRight2.png',gear_cw:'rotationClockwise.png',gear_ccw:'rotationCounterClockwise.png',recharge:'recharge.png',push_panel:'spring_on.png',laser_src:'Laser_A.png',cp1:'Finish1.png',cp2:'Finish2.png',cp3:'Finish3.png'};
 const TI={};
 const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
 const E={
@@ -159,6 +175,8 @@ const E={
   cells:{},walls:new Set(),lasers:[],checkpoints:[],starts:[],
   tool:null,selX:-1,selY:-1,openCat:null,
   brushDir:'E',brushTurnSide:'right',brushActiveRegs:[1,3,5],brushLaserStr:1,
+  // Test mode
+  testMode:false, testX:-1, testY:-1, testDir:'N', testLog:[],
 
   init(){this._buildTP();this._bind();this._preload();this._resize(12,12);this.render();},
   _preload(){for(const[k,s]of Object.entries(TP)){const i=new Image();i.onload=()=>this.render();i.src=s;TI[k]=i;}},
@@ -215,6 +233,17 @@ const E={
     document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('file-import').click());
     document.getElementById('file-import').addEventListener('change',e=>this._import(e));
     document.getElementById('btn-clear').addEventListener('click',()=>{if(confirm('Reset?'))this._clear();});
+    // Test mode
+    document.getElementById('btn-test').addEventListener('click',()=>this._toggleTest());
+    document.getElementById('btn-test-phase').addEventListener('click',()=>this._testBoardPhase());
+    document.getElementById('btn-test-reset').addEventListener('click',()=>{this.testX=-1;this.testY=-1;this._testUpdateInfo();this.render();});
+    document.querySelectorAll('.arr-btn[data-tdir]').forEach(b=>b.addEventListener('click',()=>this._testMove(b.dataset.tdir)));
+    document.addEventListener('keydown',e=>{
+      if(!this.testMode||this.testX<0)return;
+      const map={ArrowUp:'N',ArrowDown:'S',ArrowLeft:'W',ArrowRight:'E',w:'N',s:'S',a:'W',d:'E'};
+      const d=map[e.key];if(d){e.preventDefault();this._testMove(d);}
+      if(e.key===' '){e.preventDefault();this._testBoardPhase();}
+    });
   },
   _cAt(e){
     const r=canvas.getBoundingClientRect(),S=this.cellSize;
@@ -226,6 +255,8 @@ const E={
   },
   _onClick(e){
     const c=this._cAt(e);if(!c)return;const{cx,cy,ws}=c,key=`${cx},${cy}`,tool=this.tool;
+    // Test mode: click places robot
+    if(this.testMode){this.testX=cx;this.testY=cy;this._tlog('Robot piazzato in ('+(cx+1)+','+(cy+1)+')');this._testUpdateInfo();this.render();return;}
     if(!tool){this.selX=cx;this.selY=cy;this._showProps();this.render();return;}
     switch(tool){
       case'wall':if(ws){const wk=`${cx},${cy},${ws}`;if(this.walls.has(wk))this.walls.delete(wk);else this.walls.add(wk);}break;
@@ -363,6 +394,20 @@ const E={
     for(const l of this.lasers)this._dl(l);
     for(const wk of this.walls){const[x,y,s]=wk.split(',');this._dw(+x,+y,s);}
     if(this.selX>=0&&this.selY>=0){ctx.strokeStyle='rgba(88,166,255,0.7)';ctx.lineWidth=2;ctx.strokeRect(this.selX*S+1,this.selY*S+1,S-2,S-2);}
+    // Test mode: draw robot
+    if(this.testMode&&this.testX>=0&&this.testY>=0){
+      const rpx=this.testX*S+S/2,rpy=this.testY*S+S/2,rr=S*0.35;
+      ctx.fillStyle='rgba(167,139,250,0.85)';ctx.beginPath();ctx.arc(rpx,rpy,rr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      // Direction arrow
+      const drot=DR[this.testDir]??0;
+      ctx.save();ctx.translate(rpx,rpy);ctx.rotate(drot);
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(rr+4,0);ctx.lineTo(rr*0.3,-rr*0.5);ctx.lineTo(rr*0.3,rr*0.5);ctx.closePath();ctx.fill();
+      ctx.restore();
+      // Label
+      ctx.fillStyle='#fff';ctx.font=`bold ${S*0.22}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('T',rpx,rpy+1);
+    }
   },
   _dc(cx,cy,cell){
     const S=this.cellSize,px=cx*S,py=cy*S;
@@ -386,6 +431,131 @@ const E={
   _dl(l){const S=this.cellSize,px=l.x*S,py=l.y*S;const img=TI['laser_src'];if(img?.complete&&img.naturalWidth>0){const rot=(DR[l.dir??'E']??0)+(TRF['laser_src']??0);ctx.save();ctx.translate(px+S/2,py+S/2);ctx.rotate(rot);ctx.drawImage(img,-S/2,-S/2,S,S);ctx.restore();}else{ctx.fillStyle='#f85149';ctx.beginPath();ctx.arc(px+S/2,py+S/2,5,0,Math.PI*2);ctx.fill();}const v=V[l.dir];ctx.strokeStyle='rgba(248,81,73,0.4)';ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(px+S/2,py+S/2);let ex=px+S/2+v[0]*S*8,ey=py+S/2+v[1]*S*8;ex=Math.max(0,Math.min(canvas.width,ex));ey=Math.max(0,Math.min(canvas.height,ey));ctx.lineTo(ex,ey);ctx.stroke();ctx.setLineDash([]);if(l.strength>1){ctx.fillStyle='#f85149';ctx.font=`bold ${S*0.2}px JetBrains Mono`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`×${l.strength}`,px+S/2,py+S/2-7);}},
   _dw(cx,cy,side){const S=this.cellSize,px=cx*S,py=cy*S,M=1;ctx.strokeStyle='#f85149';ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();switch(side){case'N':ctx.moveTo(px+M,py+M);ctx.lineTo(px+S-M,py+M);break;case'S':ctx.moveTo(px+M,py+S-M);ctx.lineTo(px+S-M,py+S-M);break;case'E':ctx.moveTo(px+S-M,py+M);ctx.lineTo(px+S-M,py+S-M);break;case'W':ctx.moveTo(px+M,py+M);ctx.lineTo(px+M,py+S-M);break;}ctx.stroke();},
   _ar(ctx,cx,cy,r){ctx.beginPath();ctx.moveTo(cx+r,cy);ctx.lineTo(cx-r*0.65,cy-r*0.65);ctx.lineTo(cx-r*0.3,cy);ctx.lineTo(cx-r*0.65,cy+r*0.65);ctx.closePath();ctx.fill();},
+
+  // ═══ TEST MODE ═══════════════════════════════════════════════════════
+  _toggleTest(){
+    this.testMode=!this.testMode;
+    const btn=document.getElementById('btn-test');btn.classList.toggle('active',this.testMode);
+    document.getElementById('test-panel').style.display=this.testMode?'flex':'none';
+    // In test mode: hide tools, show test panel; deselect tool
+    document.getElementById('tool-cats').style.display=this.testMode?'none':'';
+    document.getElementById('active-tool-badge').classList.remove('show');
+    document.getElementById('props').style.display=this.testMode?'none':'';
+    if(this.testMode){this.tool=null;document.querySelectorAll('.tile-btn').forEach(b=>b.classList.remove('active'));
+      document.getElementById('mouse-guide-el').innerHTML='<span><b>SX</b> piazza robot</span><span><b>Frecce/WASD</b> muovi</span><span><b>Spazio</b> fase tabellone</span>';
+      this._tlog('Modalità test attivata — clicca per piazzare il robot');
+    } else {
+      document.getElementById('mouse-guide-el').innerHTML='<span><b>SX</b> piazza</span><span><b>DX</b> cancella</span><span><b>Click vuoto</b> seleziona</span>';
+    }
+    this._testUpdateInfo();this.render();
+  },
+  _testMove(dir){
+    if(this.testX<0)return;
+    this.testDir=dir;
+    const v=V[dir],nx=this.testX+v[0],ny=this.testY+v[1];
+    // Wall check
+    if(this._testWallBlocks(this.testX,this.testY,dir)){this._tlog(`Muro blocca ${DA[dir]}`);this._testUpdateInfo();this.render();return;}
+    if(nx<0||ny<0||nx>=this.gridW||ny>=this.gridH){this._tlog('Fuori mappa!');this._testUpdateInfo();this.render();return;}
+    if(this._testWallBlocks(nx,ny,OPP[dir])){this._tlog(`Muro blocca ingresso ${DA[dir]}`);this._testUpdateInfo();this.render();return;}
+    this.testX=nx;this.testY=ny;
+    this._tlog(`Mosso ${DA[dir]} → (${nx+1},${ny+1})`);
+    // Check cell effects at destination
+    this._testCheckCell();
+    this._testUpdateInfo();this.render();
+  },
+  _testBoardPhase(){
+    if(this.testX<0){this._tlog('Piazza il robot prima!');return;}
+    this._tlog('── Fase tabellone ──');
+    let moved=false;
+    // 1. Express conveyors (2 steps)
+    for(let step=0;step<2;step++){
+      const r=this._testBeltMove('express');
+      if(r){moved=true;if(step===0)this._tlog('Nastro 2x: '+r);}
+    }
+    // 2. All conveyors (1 step)
+    {const r=this._testBeltMove('all');if(r){moved=true;this._tlog('Nastro: '+r);}}
+    // 3. Gears
+    const cell=this.cells[`${this.testX},${this.testY}`];
+    if(cell?.type==='gear_cw'){this.testDir=RR[this.testDir];this._tlog('Ingranaggio ↻ → '+DA[this.testDir]);moved=true;}
+    if(cell?.type==='gear_ccw'){this.testDir=RL[this.testDir];this._tlog('Ingranaggio ↺ → '+DA[this.testDir]);moved=true;}
+    // 4. Push panels (always active in test)
+    if(cell?.type==='push_panel'&&cell.dir){
+      const pd=cell.dir,pv=V[pd];
+      if(!this._testWallBlocks(this.testX,this.testY,pd)){
+        const pnx=this.testX+pv[0],pny=this.testY+pv[1];
+        if(pnx>=0&&pny>=0&&pnx<this.gridW&&pny<this.gridH&&!this._testWallBlocks(pnx,pny,OPP[pd])){
+          this.testX=pnx;this.testY=pny;this._tlog('Pistone spinge '+DA[pd]+' → ('+( pnx+1)+','+(pny+1)+')');moved=true;
+        }
+      }
+    }
+    // 5. Lasers
+    const lHit=this.lasers.filter(l=>l.x===this.testX&&l.y===this.testY);
+    for(const l of lHit)this._tlog('⚠ Colpito da laser (forza '+l.strength+')!');
+    // Also check lasers passing through
+    for(const l of this.lasers){
+      if(l.x===this.testX&&l.y===this.testY)continue;
+      if(this._testLaserHits(l))this._tlog('⚠ Colpito da laser a distanza (forza '+l.strength+')!');
+    }
+    // 6. Recharge
+    if(cell?.type==='recharge')this._tlog('⚡ Ricarica +1 energia');
+    // 7. Checkpoint
+    const cp=this.checkpoints.find(c=>c.x===this.testX&&c.y===this.testY);
+    if(cp)this._tlog('⭐ Checkpoint #'+cp.order+' raggiunto!');
+    // 8. Pit check
+    if(cell?.type==='pit'){this._tlog('💀 Caduto in un buco! Robot resettato.');this.testX=-1;this.testY=-1;}
+    if(!moved&&!lHit.length&&!cp)this._tlog('Nessun effetto');
+    this._testUpdateInfo();this.render();
+  },
+  _testBeltMove(mode){
+    const key=`${this.testX},${this.testY}`,cell=this.cells[key];if(!cell)return null;
+    const isBelt=(t)=>['conveyor','express_conveyor','conveyor_turn','express_conveyor_turn'].includes(t);
+    const isExpress=(t)=>t==='express_conveyor'||t==='express_conveyor_turn';
+    if(!isBelt(cell.type))return null;
+    if(mode==='express'&&!isExpress(cell.type))return null;
+    const isTurn=cell.type.includes('_turn');
+    const dir=isTurn?cell.to:cell.dir;if(!dir)return null;
+    if(this._testWallBlocks(this.testX,this.testY,dir))return 'bloccato da muro';
+    const nv=V[dir],nx=this.testX+nv[0],ny=this.testY+nv[1];
+    if(nx<0||ny<0||nx>=this.gridW||ny>=this.gridH)return 'bloccato (bordo)';
+    if(this._testWallBlocks(nx,ny,OPP[dir]))return 'bloccato da muro';
+    this.testX=nx;this.testY=ny;
+    let msg='mosso '+DA[dir]+' → ('+(nx+1)+','+(ny+1)+')';
+    // Destination-based rotation (same as game logic)
+    const destCell=this.cells[`${nx},${ny}`];
+    if(destCell&&(destCell.type==='conveyor_turn'||destCell.type==='express_conveyor_turn')){
+      const isRight=RR[destCell.from]===destCell.to;
+      this.testDir=isRight?RR[this.testDir]:RL[this.testDir];
+      msg+=' + ruotato '+(isRight?'DX':'SX')+' → '+DA[this.testDir];
+    }
+    // Pit?
+    if(destCell?.type==='pit'){msg+=' → 💀 BUCO!';this.testX=-1;this.testY=-1;}
+    return msg;
+  },
+  _testWallBlocks(cx,cy,dir){return this.walls.has(`${cx},${cy},${dir}`);},
+  _testLaserHits(l){
+    const v=V[l.dir];let lx=l.x+v[0],ly=l.y+v[1];
+    while(lx>=0&&ly>=0&&lx<this.gridW&&ly<this.gridH){
+      if(this._testWallBlocks(lx,ly,OPP[l.dir]))return false;
+      if(lx===this.testX&&ly===this.testY)return true;
+      if(this._testWallBlocks(lx,ly,l.dir))return false;
+      lx+=v[0];ly+=v[1];
+    }
+    return false;
+  },
+  _tlog(msg){
+    this.testLog.unshift(msg);if(this.testLog.length>30)this.testLog.pop();
+    const el=document.getElementById('test-log');
+    el.innerHTML=this.testLog.map(m=>`<div class="tl-entry">${m}</div>`).join('');
+  },
+  _testCheckCell(){
+    const cell=this.cells[`${this.testX},${this.testY}`];if(!cell)return;
+    if(cell.type==='pit'){this._tlog('💀 Caduto in un buco! Robot resettato.');this.testX=-1;this.testY=-1;}
+  },
+  _testUpdateInfo(){
+    const pos=document.getElementById('tp-pos'),dir=document.getElementById('tp-dir');
+    if(this.testX>=0){pos.textContent=`(${this.testX+1}, ${this.testY+1})`;dir.textContent=`${DA[this.testDir]} ${this.testDir}`;}
+    else{pos.textContent='—';dir.textContent='—';}
+  },
 
   _export(){
     const json={id:this.mapName.replace(/\s+/g,'_').toLowerCase(),name:this.mapName,width:this.gridW,height:this.gridH,
