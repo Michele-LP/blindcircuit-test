@@ -1,45 +1,483 @@
 {
-  "id": "exchange",
-  "name": "Exchange",
+  "id": "new_map",
+  "name": "new_map",
   "width": 12,
   "height": 12,
   "startPositions": [
-    { "x": 1,  "y": 11, "dir": "N" },
-    { "x": 3,  "y": 11, "dir": "N" },
-    { "x": 5,  "y": 11, "dir": "N" },
-    { "x": 6,  "y": 11, "dir": "N" },
-    { "x": 8,  "y": 11, "dir": "N" },
-    { "x": 10, "y": 11, "dir": "N" }
+    {
+      "x": 11,
+      "y": 8,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 7,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 6,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 5,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 4,
+      "dir": "N"
+    },
+    {
+      "x": 11,
+      "y": 3,
+      "dir": "N"
+    }
   ],
   "checkpoints": [
-    { "x": 4, "y": 2, "order": 1 },
-    { "x": 7, "y": 9, "order": 2 }
+    {
+      "x": 2,
+      "y": 5,
+      "order": 1
+    },
+    {
+      "x": 10,
+      "y": 10,
+      "order": 2
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "order": 3
+    }
   ],
   "cells": [
-    { "x": 3,  "y": 5,  "type": "conveyor",         "dir": "N" },
-    { "x": 4,  "y": 5,  "type": "conveyor",         "dir": "N" },
-    { "x": 5,  "y": 5,  "type": "express_conveyor", "dir": "E" },
-    { "x": 6,  "y": 5,  "type": "express_conveyor", "dir": "E" },
-    { "x": 7,  "y": 5,  "type": "express_conveyor", "dir": "S" },
-    { "x": 4,  "y": 7,  "type": "gear_cw"  },
-    { "x": 7,  "y": 4,  "type": "gear_ccw" },
-    { "x": 0,  "y": 5,  "type": "pit" },
-    { "x": 0,  "y": 6,  "type": "pit" },
-    { "x": 11, "y": 5,  "type": "pit" },
-    { "x": 11, "y": 6,  "type": "pit" },
-    { "x": 5,  "y": 0,  "type": "recharge" },
-    { "x": 6,  "y": 11, "type": "recharge" },
-    { "x": 2,  "y": 9,  "type": "push_panel", "dir": "E", "activeRegisters": [1,3,5] },
-    { "x": 9,  "y": 2,  "type": "push_panel", "dir": "W", "activeRegisters": [2,4] }
+    {
+      "x": 3,
+      "y": 1,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 4,
+      "y": 2,
+      "type": "express_conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 2,
+      "y": 2,
+      "type": "express_conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "N",
+      "to": "E"
+    },
+    {
+      "x": 4,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "E",
+      "to": "S"
+    },
+    {
+      "x": 4,
+      "y": 3,
+      "type": "express_conveyor_turn",
+      "from": "S",
+      "to": "W"
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "type": "express_conveyor_turn",
+      "from": "W",
+      "to": "N"
+    },
+    {
+      "x": 8,
+      "y": 1,
+      "type": "express_conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 9,
+      "y": 2,
+      "type": "express_conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 8,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 7,
+      "y": 2,
+      "type": "express_conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 7,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "E",
+      "to": "S"
+    },
+    {
+      "x": 7,
+      "y": 3,
+      "type": "express_conveyor_turn",
+      "from": "N",
+      "to": "E"
+    },
+    {
+      "x": 9,
+      "y": 3,
+      "type": "express_conveyor_turn",
+      "from": "W",
+      "to": "N"
+    },
+    {
+      "x": 9,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "S",
+      "to": "W"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 6,
+      "y": 3,
+      "type": "conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 7,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 7,
+      "y": 5,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 7,
+      "y": 6,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 7,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 6,
+      "y": 8,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 5,
+      "y": 8,
+      "type": "conveyor",
+      "dir": "W"
+    },
+    {
+      "x": 4,
+      "y": 7,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 4,
+      "y": 6,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 4,
+      "y": 4,
+      "type": "conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 7,
+      "y": 8,
+      "type": "conveyor_turn",
+      "from": "S",
+      "to": "W"
+    },
+    {
+      "x": 4,
+      "y": 8,
+      "type": "conveyor_turn",
+      "from": "W",
+      "to": "N"
+    },
+    {
+      "x": 5,
+      "y": 10,
+      "type": "gear_cw"
+    },
+    {
+      "x": 4,
+      "y": 11,
+      "type": "gear_cw"
+    },
+    {
+      "x": 6,
+      "y": 9,
+      "type": "gear_cw"
+    },
+    {
+      "x": 6,
+      "y": 11,
+      "type": "gear_cw"
+    },
+    {
+      "x": 7,
+      "y": 10,
+      "type": "gear_cw"
+    },
+    {
+      "x": 4,
+      "y": 10,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 5,
+      "y": 9,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 6,
+      "y": 10,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 5,
+      "y": 11,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 7,
+      "y": 11,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [
+        1,
+        3,
+        5
+      ]
+    },
+    {
+      "x": 6,
+      "y": 0,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [
+        1,
+        3,
+        5
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [
+        1,
+        3,
+        5
+      ]
+    },
+    {
+      "x": 7,
+      "y": 0,
+      "type": "push_panel",
+      "dir": "N",
+      "activeRegisters": [
+        1,
+        3,
+        5
+      ]
+    },
+    {
+      "x": 9,
+      "y": 8,
+      "type": "gear_cw"
+    },
+    {
+      "x": 0,
+      "y": 10,
+      "type": "gear_cw"
+    },
+    {
+      "x": 1,
+      "y": 4,
+      "type": "gear_cw"
+    },
+    {
+      "x": 10,
+      "y": 2,
+      "type": "gear_cw"
+    },
+    {
+      "x": 3,
+      "y": 8,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 9,
+      "y": 11,
+      "type": "gear_ccw"
+    },
+    {
+      "x": 9,
+      "y": 5,
+      "type": "gear_ccw"
+    }
   ],
   "walls": [
-    { "x": 4, "y": 2, "side": "S" },
-    { "x": 3, "y": 6, "side": "E" },
-    { "x": 8, "y": 8, "side": "W" },
-    { "x": 5, "y": 3, "side": "N" }
+    {
+      "x": 5,
+      "y": 5,
+      "side": "E"
+    },
+    {
+      "x": 5,
+      "y": 6,
+      "side": "E"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "side": "E"
+    },
+    {
+      "x": 5,
+      "y": 7,
+      "side": "E"
+    },
+    {
+      "x": 5,
+      "y": 10,
+      "side": "E"
+    },
+    {
+      "x": 4,
+      "y": 9,
+      "side": "E"
+    },
+    {
+      "x": 7,
+      "y": 9,
+      "side": "W"
+    },
+    {
+      "x": 2,
+      "y": 6,
+      "side": "S"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "side": "W"
+    },
+    {
+      "x": 1,
+      "y": 9,
+      "side": "N"
+    },
+    {
+      "x": 2,
+      "y": 10,
+      "side": "E"
+    },
+    {
+      "x": 10,
+      "y": 10,
+      "side": "W"
+    },
+    {
+      "x": 8,
+      "y": 7,
+      "side": "N"
+    },
+    {
+      "x": 8,
+      "y": 4,
+      "side": "E"
+    },
+    {
+      "x": 6,
+      "y": 1,
+      "side": "W"
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "side": "N"
+    },
+    {
+      "x": 7,
+      "y": 2,
+      "side": "E"
+    }
   ],
   "lasers": [
-    { "x": 0,  "y": 3, "dir": "E", "strength": 1 },
-    { "x": 11, "y": 8, "dir": "W", "strength": 1 }
+    {
+      "x": 1,
+      "y": 0,
+      "dir": "S",
+      "strength": 1
+    },
+    {
+      "x": 3,
+      "y": 10,
+      "dir": "E",
+      "strength": 1
+    },
+    {
+      "x": 8,
+      "y": 0,
+      "dir": "S",
+      "strength": 1
+    }
   ]
 }
