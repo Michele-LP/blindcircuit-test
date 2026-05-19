@@ -66,25 +66,6 @@
       "dir": "S"
     },
     {
-      "x": 3,
-      "y": 3,
-      "type": "express_conveyor",
-      "dir": "W"
-    },
-    {
-      "x": 2,
-      "y": 2,
-      "type": "express_conveyor",
-      "dir": "N"
-    },
-    {
-      "x": 2,
-      "y": 1,
-      "type": "express_conveyor_turn",
-      "from": "N",
-      "to": "E"
-    },
-    {
       "x": 4,
       "y": 1,
       "type": "express_conveyor_turn",
@@ -92,36 +73,10 @@
       "to": "S"
     },
     {
-      "x": 4,
-      "y": 3,
-      "type": "express_conveyor_turn",
-      "from": "S",
-      "to": "W"
-    },
-    {
-      "x": 2,
-      "y": 3,
-      "type": "express_conveyor_turn",
-      "from": "W",
-      "to": "N"
-    },
-    {
       "x": 8,
       "y": 1,
       "type": "express_conveyor",
       "dir": "W"
-    },
-    {
-      "x": 9,
-      "y": 2,
-      "type": "express_conveyor",
-      "dir": "N"
-    },
-    {
-      "x": 8,
-      "y": 3,
-      "type": "express_conveyor",
-      "dir": "E"
     },
     {
       "x": 7,
@@ -139,23 +94,14 @@
     {
       "x": 7,
       "y": 3,
-      "type": "express_conveyor_turn",
-      "from": "S",
-      "to": "E"
-    },
-    {
-      "x": 9,
-      "y": 3,
-      "type": "express_conveyor_turn",
-      "from": "E",
-      "to": "N"
+      "type": "express_conveyor",
+      "dir": "S"
     },
     {
       "x": 9,
       "y": 1,
-      "type": "express_conveyor_turn",
-      "from": "N",
-      "to": "W"
+      "type": "express_conveyor",
+      "dir": "W"
     },
     {
       "x": 5,
@@ -172,8 +118,9 @@
     {
       "x": 7,
       "y": 4,
-      "type": "conveyor",
-      "dir": "S"
+      "type": "express_conveyor_turn",
+      "from": "S",
+      "to": "E"
     },
     {
       "x": 7,
@@ -226,8 +173,9 @@
     {
       "x": 4,
       "y": 4,
-      "type": "conveyor",
-      "dir": "N"
+      "type": "express_conveyor_turn",
+      "from": "S",
+      "to": "W"
     },
     {
       "x": 7,
@@ -350,12 +298,15 @@
     {
       "x": 1,
       "y": 4,
-      "type": "gear_cw"
+      "type": "express_conveyor_turn",
+      "from": "W",
+      "to": "N"
     },
     {
       "x": 10,
       "y": 2,
-      "type": "gear_cw"
+      "type": "express_conveyor",
+      "dir": "N"
     },
     {
       "x": 3,
@@ -371,6 +322,81 @@
       "x": 9,
       "y": 5,
       "type": "gear_ccw"
+    },
+    {
+      "x": 10,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 10,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "N",
+      "to": "W"
+    },
+    {
+      "x": 9,
+      "y": 4,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 8,
+      "y": 4,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 10,
+      "y": 4,
+      "type": "express_conveyor_turn",
+      "from": "E",
+      "to": "N"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 3,
+      "y": 4,
+      "type": "express_conveyor",
+      "dir": "E"
+    },
+    {
+      "x": 4,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "S"
+    },
+    {
+      "x": 1,
+      "y": 2,
+      "type": "express_conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "type": "express_conveyor",
+      "dir": "N"
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "type": "express_conveyor_turn",
+      "from": "N",
+      "to": "E"
     }
   ],
   "walls": [
@@ -440,11 +466,6 @@
       "side": "N"
     },
     {
-      "x": 8,
-      "y": 4,
-      "side": "E"
-    },
-    {
       "x": 6,
       "y": 1,
       "side": "W"
@@ -461,12 +482,6 @@
     }
   ],
   "lasers": [
-    {
-      "x": 1,
-      "y": 0,
-      "dir": "S",
-      "strength": 1
-    },
     {
       "x": 3,
       "y": 10,
