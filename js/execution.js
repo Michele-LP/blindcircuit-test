@@ -191,32 +191,28 @@ const Execution = (() => {
   function applyConveyors(sim, beltType) {
     const actions=[];
     const onBelt = Object.values(sim).filter(s => {
-      if (s.rebooting) return false;   // v6.9: skip robot in reboot
+      if (s.rebooting) return false;
       const ct = Board._cellAt(s.cx, s.cy)?.type;
       return ct && _isBeltOfType(ct, beltType);
     });
     if (!onBelt.length) return actions;
 
-    const intended = new Map();   // id → { nx, ny } | null
-    const turnInfo = new Map();   // id → { from, to } per le curve (per la rotazione)
+    const intended = new Map();
 
     for (const s of onBelt) {
       const cell = Board._cellAt(s.cx, s.cy);
       const isTurn = cell.type.includes('_turn');
-      // Direzione di uscita: per le curve è 'to', per i nastri dritti è 'dir'
       const dir = isTurn ? cell.to : cell.dir;
       if (!dir || wallBlocks(s.cx, s.cy, dir)) { intended.set(s.id, null); continue; }
       const v = VECS[dir], nx = s.cx + v[0], ny = s.cy + v[1];
       if (!Board.inBounds(nx, ny)) { intended.set(s.id, null); continue; }
       intended.set(s.id, { nx, ny });
-      if (isTurn) turnInfo.set(s.id, { from: cell.from, to: cell.to });
     }
 
-    // Risoluzione conflitti: due robot stessa destinazione → nessuno si muove
+    // Risoluzione conflitti
     const dc = new Map();
     for (const [, m] of intended) if (m) { const k = `${m.nx},${m.ny}`; dc.set(k, (dc.get(k) || 0) + 1); }
     for (const [id, m] of intended) if (m && (dc.get(`${m.nx},${m.ny}`) || 0) > 1) intended.set(id, null);
-    // Blocco: robot fermo nella destinazione (non su nastro o non si muove)
     for (const [id, m] of intended) {
       if (!m) continue;
       if (Object.values(sim).some(o => o.id !== id && o.cx === m.nx && o.cy === m.ny &&
@@ -224,27 +220,20 @@ const Execution = (() => {
         intended.set(id, null);
     }
 
-    // v6.9 FIX B3: rotazione PRIMA del movimento per nastri curvi (regole RoboRally)
-    // Prima applichiamo le rotazioni (solo stato + azione), poi i movimenti.
-    const rotateActions = [];
-    for (const [id, ti] of turnInfo) {
-      if (!intended.get(id)) continue; // non si è mosso → niente rotazione
-      const s = sim[id];
-      const isRight = ROT_R[ti.from] === ti.to;
-      s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
-      rotateActions.push({ type: 'rotate', id, dir: s.dir });
-    }
+    // v6.9: traccia posizione di origine per il check same-type
+    const moveOrigin = new Map();
 
     // Applica movimenti
     const moveActions = [];
     for (const [id, m] of intended) {
       if (!m) continue;
       const s = sim[id];
+      moveOrigin.set(id, { ox: s.cx, oy: s.cy });
       if (Board.cellType(m.nx, m.ny) === 'pit') {
         s.cx = m.nx; s.cy = m.ny; moveActions.push({ type: 'move', id, cx: m.nx, cy: m.ny });
-        const rp = respawnPos(s); s.cx = rp.cx; s.cy = rp.cy;
+        const rp = respawnPos(s); s.cx = rp.cx; s.cy = rp.cy; s.dir = rp.dir;
         for (let j = 0; j < CONFIG.spamCardsOnFall; j++) s.discard.unshift('spam');
-        moveActions.push({ type: 'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy });
+        moveActions.push({ type: 'fall', id, cx: m.nx, cy: m.ny, respawnCx: rp.cx, respawnCy: rp.cy, respawnDir: rp.dir });
         s.rebooting = true;
       } else {
         s.cx = m.nx; s.cy = m.ny;
@@ -252,10 +241,40 @@ const Execution = (() => {
       }
     }
 
-    // Rotazioni prima, movimenti dopo — i robot caduti non ruotano
-    // (rebooting settato durante i movimenti, ma la rotazione era già stata calcolata)
-    actions.push(...rotateActions.filter(ra => !sim[ra.id]?.rebooting), ...moveActions);
+    // v6.9 FIX conveyor turns — 3 regole:
+    // 1) Rotazione basata sulla DESTINAZIONE (dove il robot è finito)
+    // 2) Solo se arriva da un nastro dello STESSO tipo (singolo→singolo, doppio→doppio)
+    // 3) Direzione corretta: OPP[from] è la direzione di viaggio del robot
+    const rotateActions = [];
+    for (const [id, m] of intended) {
+      if (!m) continue;
+      const s = sim[id];
+      if (s.rebooting) continue;
+      const destCell = Board._cellAt(s.cx, s.cy);
+      if (!destCell) continue;
+      const isTurn = destCell.type === 'conveyor_turn' || destCell.type === 'express_conveyor_turn';
+      if (!isTurn) continue;
 
+      // Regola same-type: l'origine deve essere un nastro dello stesso tipo
+      const orig = moveOrigin.get(id);
+      if (!orig) continue;
+      const originCell = Board._cellAt(orig.ox, orig.oy);
+      if (!originCell) continue;
+      const destIsExpress = destCell.type === 'express_conveyor_turn';
+      const sameType = destIsExpress
+        ? _isBeltOfType(originCell.type, 'express_conveyor')
+        : _isBeltOfType(originCell.type, 'conveyor');
+      if (!sameType) continue;
+
+      // Direzione corretta: il robot viaggiava in OPP[from]
+      const entryDir = OPP[destCell.from];
+      const isRight = ROT_R[entryDir] === destCell.to;
+      s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
+      rotateActions.push({ type: 'rotate', id, dir: s.dir });
+    }
+
+    // Regola: prima rotazione, poi spostamento
+    actions.push(...rotateActions, ...moveActions);
     return actions;
   }
   function applyPushPanels(sim,regIndex){

@@ -134,26 +134,26 @@ canvas{border:1px solid var(--border2);border-radius:4px;cursor:crosshair;image-
 <script>
 const CATS=[
   {id:'belts',name:'Nastri',tools:[
-    {id:'conveyor',name:'Dritto 1x',img:'assets/tiles/beltForward1.png'},
-    {id:'express_conveyor',name:'Dritto 2x',img:'assets/tiles/beltForward2.png'},
-    {id:'turn_r',name:'Curva DX 1x',img:'assets/tiles/beltTurnRight1.png'},
-    {id:'turn_l',name:'Curva SX 1x',img:'assets/tiles/beltTurnLeft1.png'},
-    {id:'eturn_r',name:'Curva DX 2x',img:'assets/tiles/beltTurnRight2.png'},
-    {id:'eturn_l',name:'Curva SX 2x',img:'assets/tiles/beltTurnLeft2.png'},
+    {id:'conveyor',name:'Dritto 1x',img:'beltForward1.png'},
+    {id:'express_conveyor',name:'Dritto 2x',img:'beltForward2.png'},
+    {id:'turn_r',name:'Curva DX 1x',img:'beltTurnRight1.png'},
+    {id:'turn_l',name:'Curva SX 1x',img:'beltTurnLeft1.png'},
+    {id:'eturn_r',name:'Curva DX 2x',img:'beltTurnRight2.png'},
+    {id:'eturn_l',name:'Curva SX 2x',img:'beltTurnLeft2.png'},
   ]},
   {id:'gears',name:'Ingranaggi',tools:[
-    {id:'gear_cw',name:'Orario',img:'assets/tiles/rotationClockwise.png'},
-    {id:'gear_ccw',name:'Antiorario',img:'assets/tiles/rotationCounterClockwise.png'},
-    {id:'recharge',name:'Ricarica',img:'assets/tiles/recharge.png'},
+    {id:'gear_cw',name:'Orario',img:'rotationClockwise.png'},
+    {id:'gear_ccw',name:'Antiorario',img:'rotationCounterClockwise.png'},
+    {id:'recharge',name:'Ricarica',img:'recharge.png'},
   ]},
   {id:'hazards',name:'Ostacoli',tools:[
-    {id:'pit',name:'Buco',img:'assets/tiles/hole.png'},
-    {id:'push_panel',name:'Pistone',img:'assets/tiles/spring_on.png'},
-    {id:'laser',name:'Laser',img:'assets/tiles/Laser_A.png'},
+    {id:'pit',name:'Buco',img:'hole.png'},
+    {id:'push_panel',name:'Pistone',img:'spring_on.png'},
+    {id:'laser',name:'Laser',img:'Laser_A.png'},
     {id:'wall',name:'Muro',img:null,text:'🧱'},
   ]},
   {id:'goals',name:'Obiettivi',tools:[
-    {id:'checkpoint',name:'Checkpoint',img:'assets/tiles/Finish1.png'},
+    {id:'checkpoint',name:'Checkpoint',img:'Finish1.png'},
     {id:'start',name:'Partenza',img:null,text:'🤖'},
   ]},
 ];
@@ -167,25 +167,7 @@ const CC={floor:'transparent',pit:'#080c10',conveyor:'#1e293b',express_conveyor:
 function cti(f,t){return{isRight:RR[f]===t,rotRad:DR[f]??0};}
 function fromTo(out,side){return side==='right'?{from:OPP[RL[out]],to:out}:{from:OPP[RR[out]],to:out};}
 function detectSide(f,t){return RR[OPP[f]]===t?'right':'left';}
-const TP={
-  floor_a:'assets/tiles/pavement_A.png',
-  floor_b:'assets/tiles/pavement_B.png',
-  pit:'assets/tiles/hole.png',
-  conveyor:'assets/tiles/beltForward1.png',
-  express:'assets/tiles/beltForward2.png',
-  conv_turn_left:'assets/tiles/beltTurnLeft1.png',
-  conv_turn_right:'assets/tiles/beltTurnRight1.png',
-  exp_turn_left:'assets/tiles/beltTurnLeft2.png',
-  exp_turn_right:'assets/tiles/beltTurnRight2.png',
-  gear_cw:'assets/tiles/rotationClockwise.png',
-  gear_ccw:'assets/tiles/rotationCounterClockwise.png',
-  recharge:'assets/tiles/recharge.png',
-  push_panel:'assets/tiles/spring_on.png',
-  laser_src:'assets/tiles/Laser_A.png',
-  cp1:'assets/tiles/Finish1.png',
-  cp2:'assets/tiles/Finish2.png',
-  cp3:'assets/tiles/Finish3.png'
-};
+const TP={floor_a:'pavement_A.png',floor_b:'pavement_B.png',pit:'hole.png',conveyor:'beltForward1.png',express:'beltForward2.png',conv_turn_left:'beltTurnLeft1.png',conv_turn_right:'beltTurnRight1.png',exp_turn_left:'beltTurnLeft2.png',exp_turn_right:'beltTurnRight2.png',gear_cw:'rotationClockwise.png',gear_ccw:'rotationCounterClockwise.png',recharge:'recharge.png',push_panel:'spring_on.png',laser_src:'Laser_A.png',cp1:'Finish1.png',cp2:'Finish2.png',cp3:'Finish3.png'};
 const TI={};
 const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
 const E={
@@ -469,15 +451,19 @@ const E={
   },
   _testMove(dir){
     if(this.testX<0)return;
-    this.testDir=dir;
+    // Se il robot non è orientato verso la direzione premuta → gira e basta
+    if(this.testDir!==dir){
+      this.testDir=dir;
+      this._tlog(`Girato verso ${DA[dir]}`);
+      this._testUpdateInfo();this.render();return;
+    }
+    // Già orientato → si sposta di 1
     const v=V[dir],nx=this.testX+v[0],ny=this.testY+v[1];
-    // Wall check
     if(this._testWallBlocks(this.testX,this.testY,dir)){this._tlog(`Muro blocca ${DA[dir]}`);this._testUpdateInfo();this.render();return;}
     if(nx<0||ny<0||nx>=this.gridW||ny>=this.gridH){this._tlog('Fuori mappa!');this._testUpdateInfo();this.render();return;}
     if(this._testWallBlocks(nx,ny,OPP[dir])){this._tlog(`Muro blocca ingresso ${DA[dir]}`);this._testUpdateInfo();this.render();return;}
     this.testX=nx;this.testY=ny;
     this._tlog(`Mosso ${DA[dir]} → (${nx+1},${ny+1})`);
-    // Check cell effects at destination
     this._testCheckCell();
     this._testUpdateInfo();this.render();
   },
@@ -526,24 +512,39 @@ const E={
   },
   _testBeltMove(mode){
     const key=`${this.testX},${this.testY}`,cell=this.cells[key];if(!cell)return null;
-    const isBelt=(t)=>['conveyor','express_conveyor','conveyor_turn','express_conveyor_turn'].includes(t);
-    const isExpress=(t)=>t==='express_conveyor'||t==='express_conveyor_turn';
-    if(!isBelt(cell.type))return null;
-    if(mode==='express'&&!isExpress(cell.type))return null;
-    const isTurn=cell.type.includes('_turn');
+    const isBelt=(t,c)=>['conveyor','express_conveyor'].includes(t)||(t==='conveyor_turn');
+    const isExpress=(t,c)=>t==='express_conveyor'||(t==='conveyor_turn'&&c?.express);
+    const isNormal=(t,c)=>t==='conveyor'||(t==='conveyor_turn'&&!c?.express);
+    if(!['conveyor','express_conveyor','conveyor_turn'].includes(cell.type))return null;
+    const cellIsExpress=isExpress(cell.type,cell);
+    if(mode==='express'&&!cellIsExpress)return null;
+    const isTurn=cell.type==='conveyor_turn';
     const dir=isTurn?cell.to:cell.dir;if(!dir)return null;
     if(this._testWallBlocks(this.testX,this.testY,dir))return 'bloccato da muro';
     const nv=V[dir],nx=this.testX+nv[0],ny=this.testY+nv[1];
     if(nx<0||ny<0||nx>=this.gridW||ny>=this.gridH)return 'bloccato (bordo)';
     if(this._testWallBlocks(nx,ny,OPP[dir]))return 'bloccato da muro';
+    const origX=this.testX,origY=this.testY;
     this.testX=nx;this.testY=ny;
     let msg='mosso '+DA[dir]+' → ('+(nx+1)+','+(ny+1)+')';
-    // Destination-based rotation (same as game logic)
-    const destCell=this.cells[`${nx},${ny}`];
-    if(destCell&&(destCell.type==='conveyor_turn'||destCell.type==='express_conveyor_turn')){
-      const isRight=RR[destCell.from]===destCell.to;
-      this.testDir=isRight?RR[this.testDir]:RL[this.testDir];
-      msg+=' + ruotato '+(isRight?'DX':'SX')+' → '+DA[this.testDir];
+    // Destination-based rotation + same-type check
+    const destKey=`${nx},${ny}`,destCell=this.cells[destKey];
+    if(destCell?.type==='conveyor_turn'){
+      // Same type check: origine e destinazione devono essere dello stesso tipo
+      const destIsExpress=destCell.express;
+      const origCell=this.cells[`${origX},${origY}`];
+      const origIsExpress=isExpress(origCell?.type,origCell);
+      const origIsNormal=isNormal(origCell?.type,origCell);
+      const sameType=(destIsExpress&&origIsExpress)||(!destIsExpress&&origIsNormal);
+      if(sameType){
+        // FIX direzione: OPP[from] = direzione di viaggio
+        const entryDir=OPP[destCell.from];
+        const isRight=RR[entryDir]===destCell.to;
+        this.testDir=isRight?RR[this.testDir]:RL[this.testDir];
+        msg+=' + ruotato '+(isRight?'DX':'SX')+' → '+DA[this.testDir];
+      } else {
+        msg+=' (tipo diverso, no rotazione)';
+      }
     }
     // Pit?
     if(destCell?.type==='pit'){msg+=' → 💀 BUCO!';this.testX=-1;this.testY=-1;}
