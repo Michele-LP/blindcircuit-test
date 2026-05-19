@@ -133,28 +133,28 @@
       "x": 7,
       "y": 1,
       "type": "express_conveyor_turn",
-      "from": "E",
+      "from": "W",
       "to": "S"
     },
     {
       "x": 7,
       "y": 3,
       "type": "express_conveyor_turn",
-      "from": "N",
+      "from": "S",
       "to": "E"
     },
     {
       "x": 9,
       "y": 3,
       "type": "express_conveyor_turn",
-      "from": "W",
+      "from": "E",
       "to": "N"
     },
     {
       "x": 9,
       "y": 1,
       "type": "express_conveyor_turn",
-      "from": "S",
+      "from": "N",
       "to": "W"
     },
     {
