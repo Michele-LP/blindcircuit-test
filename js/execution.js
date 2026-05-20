@@ -355,6 +355,7 @@ const Execution = (() => {
     for (const id of turnOrder()){
       const sh=sim[id]; if(!sh)continue;
       if (sh.rebooting) continue;   // v6.9: robot in reboot non spara
+      if (sh.powerDown) continue;   // v6.9: Power Down non spara
 
       // Muro blocca il laser del robot in partenza
       if(wallBlocks(sh.cx,sh.cy,sh.dir))continue;
@@ -556,6 +557,8 @@ const Execution = (() => {
       const decks={}; for(const p of pls) decks[p.id]={deck:[...(p.deck??[])],discard:[...(p.discard??[])]};
       // v6.9 B5: resetta il flag rebooting per il prossimo round
       for(const p of pls) p.rebooting=false;
+      // v6.9 Power Down: segna chi era in powerDown per il cleanup a startRound
+      const pdFlags={}; for(const p of pls){if(p.powerDown){pdFlags[p.id]=true;p._wasPowerDown=true;}p.powerDown=false;}
       setTimeout(()=>{Net.sendToAll({type:'ROUND_START',round:State.round,timerSec:0,wormSlots:ws,
         decks,damageDeck:[...State.damageDeck],damageDiscard:[...State.damageDiscard],
         energyToken:State.energyToken});},800);
@@ -580,6 +583,7 @@ const Execution = (() => {
           wormSlots:{...(p.wormSlots??{})},
           registers:allRegisters[p.id]??[],
           rebooting: false,
+          powerDown: !!p.powerDown,  // v6.9: Power Down
         };
       });
 
@@ -594,6 +598,7 @@ const Execution = (() => {
         // ── Carte: ogni giocatore esegue TUTTA la sua carta prima del successivo ──
         for (const id of order){
           if (sim[id].rebooting) continue;
+          if (sim[id].powerDown) continue;  // v6.9: Power Down → nessuna carta eseguita
           const card=sim[id]?.registers[reg];
           if (!card) continue;
           if (typeof card==='string' && card.startsWith('worm_')){
@@ -654,6 +659,15 @@ const Execution = (() => {
         if(winner) break;
       }
 
+      // v6.9 Power Down: rimuovi SPAM/WORM dai giocatori in powerDown prima del sync
+      for (const s of Object.values(sim)) {
+        if (s.powerDown) {
+          s.deck = s.deck.filter(c => c !== 'spam');
+          s.discard = s.discard.filter(c => c !== 'spam');
+          s.wormSlots = {};
+        }
+      }
+
       // Sync finale
       plan.push([
         ...Object.values(sim).map(s=>({type:'deck_sync',id:s.id,deck:[...s.deck],discard:[...s.discard]})),
@@ -693,13 +707,21 @@ const Execution = (() => {
           Game.highlightRegister(reg);
           if(typeof Log!=='undefined')Log.add(`── Registro P${reg+1} ──`,{type:'info'});
         }
+        let lastPlayerId=null;
         for(const action of plan[reg]){
           if(token.value) return;
+          // v6.9: pausa extra quando cambia giocatore (raggruppa azioni visivamente)
+          if(action.type==='card_played'&&lastPlayerId!==null&&action.id!==lastPlayerId){
+            await wait(Math.round(aDelay*1.2)); // pausa tra giocatori
+          }
+          if(action.type==='card_played') lastPlayerId=action.id;
           applyAction(action);
           // Azioni invisibili: nessun delay
           if(['deck_sync','damage_deck_sync','phase_marker','card_played'].includes(action.type)) continue;
           const vis=action.type==='move'||action.type==='rotate'||action.type==='fall'||action.type==='laser_beam';
-          await wait(vis?aDelay:Math.max(60,aDelay*0.15));
+          // Delay più breve tra azioni dello stesso giocatore per raggruppare visivamente
+          const samePlayer=action.id===lastPlayerId;
+          await wait(vis?(samePlayer?Math.round(aDelay*0.55):aDelay):Math.max(60,aDelay*0.15));
         }
         if(token.value)return;
         if(reg<animSteps-1){
