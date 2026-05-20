@@ -586,74 +586,72 @@ const Execution = (() => {
       const plan=[],prevCard={},order=turnOrder();
       let winner=null;
 
-      // v6.9: ogni giocatore esegue TUTTI i suoi registri prima di passare al successivo
-      for (const id of order) {
-        if (winner) break;
-        for (let reg=0;reg<CONFIG.registersCount;reg++){
-          const ra=[];
+      // RoboRally: per ogni registro (P1→P5), tutti i giocatori eseguono la loro carta,
+      // poi si attivano gli elementi del tabellone.
+      for (let reg=0;reg<CONFIG.registersCount;reg++){
+        const ra=[];
 
-          // ── Carta del giocatore corrente ──────────────────────────────────
-          if (!sim[id].rebooting) {
-            const card=sim[id]?.registers[reg];
-            if (card) {
-              if (typeof card==='string' && card.startsWith('worm_')){
-                const wd=(typeof RULES!=='undefined'?RULES?.worms:null)?.find(w=>w.id===card);
-                ra.push({type:'card_played',id,cardName:wd?.name??card,isWorm:true});
-                ra.push(...execWorm(simShared,sim,id,reg,card));
-              } else {
-                const def=CONFIG.cards.find(c=>c.id===card);
-                ra.push({type:'card_played',id,cardName:def?.name??card});
-                ra.push(...execCard(sim,id,card,prevCard[id]));
-                if(card!=='again')prevCard[id]=card;
-              }
-            }
+        // ── Carte: ogni giocatore esegue TUTTA la sua carta prima del successivo ──
+        for (const id of order){
+          if (sim[id].rebooting) continue;
+          const card=sim[id]?.registers[reg];
+          if (!card) continue;
+          if (typeof card==='string' && card.startsWith('worm_')){
+            const wd=(typeof RULES!=='undefined'?RULES?.worms:null)?.find(w=>w.id===card);
+            ra.push({type:'card_played',id,cardName:wd?.name??card,isWorm:true});
+            ra.push(...execWorm(simShared,sim,id,reg,card));
+          } else {
+            const def=CONFIG.cards.find(c=>c.id===card);
+            ra.push({type:'card_played',id,cardName:def?.name??card});
+            ra.push(...execCard(sim,id,card,prevCard[id]));
+            if(card!=='again')prevCard[id]=card;
           }
-
-          // ── Elementi del tabellone (dopo ogni registro, per TUTTI) ────────
-          const conv1=applyConveyors(sim,'express_conveyor');
-          const conv2=applyConveyors(sim,'express_conveyor');
-          if(conv1.length||conv2.length) ra.push({type:'phase_marker',name:'Nastri express'});
-          ra.push(...conv1,...conv2);
-
-          const conv3=applyConveyors(sim,'conveyor');
-          if(conv3.length) ra.push({type:'phase_marker',name:'Nastri normali'});
-          ra.push(...conv3);
-
-          const pp=applyPushPanels(sim,reg);
-          if(pp.length) ra.push({type:'phase_marker',name:'Push panel'});
-          ra.push(...pp);
-
-          const gears=applyGears(sim);
-          if(gears.length) ra.push({type:'phase_marker',name:'Ingranaggi'});
-          ra.push(...gears);
-
-          const bl=fireLasers(simShared,sim,reg);
-          if(bl.length) ra.push({type:'phase_marker',name:'Laser bordo'});
-          ra.push(...bl);
-
-          const rl=fireRobotWeapons(simShared,sim,reg);
-          if(rl.length) ra.push({type:'phase_marker',name:'Laser robot'});
-          ra.push(...rl);
-
-          // ── Batterie + Checkpoint ────────────────────────────────────────
-          for (const pid of order){
-            const s=sim[pid];
-            if (s.rebooting) continue;
-            if(Board.cellType(s.cx,s.cy)==='recharge'){
-              s.energy=Math.min((s.energy??0)+CONFIG.rechargeAmount,CONFIG.maxEnergy);
-              ra.push({type:'energy',id:pid,energy:s.energy});
-            }
-          }
-          for (const pid of order){
-            if (sim[pid].rebooting) continue;
-            const cp=checkCheckpoint(sim[pid]);
-            if(!cp) continue; ra.push(cp);
-            if(cp.won) winner=pid;
-          }
-
-          plan.push(ra);
-          if(winner) break;
         }
+
+        // ── Elementi del tabellone (dopo che TUTTI hanno giocato il registro) ──
+        const conv1=applyConveyors(sim,'express_conveyor');
+        const conv2=applyConveyors(sim,'express_conveyor');
+        if(conv1.length||conv2.length) ra.push({type:'phase_marker',name:'Nastri express'});
+        ra.push(...conv1,...conv2);
+
+        const conv3=applyConveyors(sim,'conveyor');
+        if(conv3.length) ra.push({type:'phase_marker',name:'Nastri normali'});
+        ra.push(...conv3);
+
+        const pp=applyPushPanels(sim,reg);
+        if(pp.length) ra.push({type:'phase_marker',name:'Push panel'});
+        ra.push(...pp);
+
+        const gears=applyGears(sim);
+        if(gears.length) ra.push({type:'phase_marker',name:'Ingranaggi'});
+        ra.push(...gears);
+
+        const bl=fireLasers(simShared,sim,reg);
+        if(bl.length) ra.push({type:'phase_marker',name:'Laser bordo'});
+        ra.push(...bl);
+
+        const rl=fireRobotWeapons(simShared,sim,reg);
+        if(rl.length) ra.push({type:'phase_marker',name:'Laser robot'});
+        ra.push(...rl);
+
+        // ── Batterie + Checkpoint ────────────────────────────────────────
+        for (const id of order){
+          const s=sim[id];
+          if (s.rebooting) continue;
+          if(Board.cellType(s.cx,s.cy)==='recharge'){
+            s.energy=Math.min((s.energy??0)+CONFIG.rechargeAmount,CONFIG.maxEnergy);
+            ra.push({type:'energy',id,energy:s.energy});
+          }
+        }
+        for (const id of order){
+          if (sim[id].rebooting) continue;
+          const cp=checkCheckpoint(sim[id]);
+          if(!cp) continue; ra.push(cp);
+          if(cp.won) winner=id;
+        }
+
+        plan.push(ra);
+        if(winner) break;
       }
 
       // Sync finale
