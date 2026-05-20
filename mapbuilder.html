@@ -136,10 +136,8 @@ const CATS=[
   {id:'belts',name:'Nastri',tools:[
     {id:'conveyor',name:'Dritto 1x',img:'assets/tiles/beltForward1.png'},
     {id:'express_conveyor',name:'Dritto 2x',img:'assets/tiles/beltForward2.png'},
-    {id:'turn_r',name:'Curva DX 1x',img:'assets/tiles/beltTurnRight1.png'},
-    {id:'turn_l',name:'Curva SX 1x',img:'assets/tiles/beltTurnLeft1.png'},
-    {id:'eturn_r',name:'Curva DX 2x',img:'assets/tiles/beltTurnRight2.png'},
-    {id:'eturn_l',name:'Curva SX 2x',img:'assets/tiles/beltTurnLeft2.png'},
+    {id:'curve',name:'Curva 1x',img:'assets/tiles/beltTurnRight1.png'},
+    {id:'curve2',name:'Curva 2x',img:'assets/tiles/beltTurnRight2.png'},
   ]},
   {id:'gears',name:'Ingranaggi',tools:[
     {id:'gear_cw',name:'Orario',img:'assets/tiles/rotationClockwise.png'},
@@ -194,7 +192,7 @@ const E={
   gridW:12,gridH:12,cellSize:48,mapName:'new_map',
   cells:{},walls:new Set(),lasers:[],checkpoints:[],starts:[],
   tool:null,selX:-1,selY:-1,openCat:null,
-  brushDir:'E',brushTurnSide:'right',brushActiveRegs:[1,3,5],brushLaserStr:1,
+  brushDir:'E',brushTurnSide:'right',brushExpress:false,brushActiveRegs:[1,3,5],brushLaserStr:1,
   // Test mode
   testMode:false, testX:-1, testY:-1, testDir:'N', testLog:[],
 
@@ -308,9 +306,15 @@ const E={
   },
   _mc(tid){
     const c={};
+    // Curva unificata: usa brushTurnSide e brushExpress
+    if(tid==='curve'||tid==='curve2'){
+      c.type='conveyor_turn';c.express=(tid==='curve2');
+      const side=this.brushTurnSide==='right'?'left':'right'; // swap per coerenza immagini
+      const ft=fromTo(this.brushDir,side);c.from=ft.from;c.to=ft.to;return c;
+    }
+    // Legacy: supporta ancora i vecchi tool id per mappe importate
     if(['turn_r','turn_l','eturn_r','eturn_l'].includes(tid)){
       c.type='conveyor_turn';c.express=tid.startsWith('e');
-      // FIX: swap side mapping per allineare immagine + rotazione + label
       const side=tid.endsWith('_r')?'left':'right';
       const ft=fromTo(this.brushDir,side);c.from=ft.from;c.to=ft.to;return c;
     }
@@ -385,13 +389,13 @@ const E={
     }));
     document.querySelectorAll('.turn-btn[data-turn]').forEach(b=>b.addEventListener('click',()=>{
       const cell=this.cells[key];if(!cell)return;
-      // FIX: swap interno per coerenza con immagini (DX nel pannello = 'left' per fromTo)
       const ns=b.dataset.turn==='right'?'left':'right';
       const ft=fromTo(cell.to,ns);cell.from=ft.from;cell.to=ft.to;
+      this.brushTurnSide=b.dataset.turn; // persisti scelta utente
       this._showProps();this.render();
     }));
-    document.querySelector('[data-action="sp1"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=false;this._showProps();this.render();});
-    document.querySelector('[data-action="sp2"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=true;this._showProps();this.render();});
+    document.querySelector('[data-action="sp1"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=false;this.brushExpress=false;this._showProps();this.render();});
+    document.querySelector('[data-action="sp2"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=true;this.brushExpress=true;this._showProps();this.render();});
     document.querySelectorAll('.reg-btn[data-reg]').forEach(b=>b.addEventListener('click',()=>{
       const cell=this.cells[key];if(!cell)return;const r=+b.dataset.reg;
       if(!cell.activeRegisters)cell.activeRegisters=[];const idx=cell.activeRegisters.indexOf(r);

@@ -47,6 +47,15 @@ const Cards = {
     if(!me.wormSlots)me.wormSlots={};
     // v6.9 B5: resetta rebooting per tutti i giocatori a inizio round
     for(const p of Object.values(State.players)){p.confirmed=false;p.rebooting=false;}
+    // v6.9 Power Down: se il giocatore era in powerDown, pulisci SPAM e WORM
+    if(me._wasPowerDown){
+      me.deck=(me.deck??[]).filter(c=>c!=='spam');
+      me.discard=(me.discard??[]).filter(c=>c!=='spam');
+      me.wormSlots={};
+      me._wasPowerDown=false;
+      if(typeof Log!=='undefined')Log.add('⚡ Power Down completato — SPAM e WORM rimossi',{type:'event'});
+    }
+    me.powerDown=false;
     me.discard.push(...me.hand);me.hand=[];me.confirmed=false;
     if(State.isHost)this._confirmed={};
     me.registers=Array.from({length:CONFIG.registersCount},(_,i)=>me.wormSlots[i]??null);
@@ -109,23 +118,45 @@ const Cards = {
   unconfirm(){
     const me=State.myPlayer();if(!me||!me.confirmed)return;
     if(State.execAnimating)return;
-    me.confirmed=false;
+    me.confirmed=false;me.powerDown=false;
     Net.sendToAll({type:'UNCONFIRM'});
     document.getElementById('prog-status').textContent='Conferma annullata — modifica i registri';
     document.getElementById('btn-confirm').disabled=false;
     const ua=document.getElementById('btn-unconfirm');
     if(ua)ua.style.display='none';
+    const pd=document.getElementById('btn-powerdown');if(pd)pd.style.display='';
+    this.render();this.updateOthersStatus();
+  },
+
+  // v6.9: Power Down — il robot non esegue carte per un round
+  // Beneficio: a fine round vengono rimosse tutte le SPAM e WORM
+  // Rischio: il robot resta fermo e subisce nastri/pistoni/laser del tabellone
+  powerDown(){
+    const me=State.myPlayer();if(!me||me.confirmed)return;
+    me.powerDown=true;me._wasPowerDown=true;
+    // Svuota tutti i registri (anche i WORM) — nessuna carta verrà eseguita
+    me.registers=Array.from({length:CONFIG.registersCount},()=>null);
+    me.confirmed=true;
+    Net.sendToAll({type:'PROGRAM_REGISTERS',registers:me.registers,
+      deck:[...(me.deck??[])],discard:[...(me.discard??[])],powerDown:true});
+    document.getElementById('prog-status').textContent='⚡ Power Down! Robot spento per questo round.';
+    document.getElementById('btn-confirm').disabled=true;
+    const ua=document.getElementById('btn-unconfirm');if(ua)ua.style.display='inline-flex';
+    const pd=document.getElementById('btn-powerdown');if(pd)pd.style.display='none';
+    if(typeof Audio!=='undefined') Audio.play('confirm');
+    if(typeof Log!=='undefined')Log.add('⚡ Power Down attivato',{type:'event'});
     this.render();this.updateOthersStatus();
   },
 
   onGuestConfirmed(fromId,msg){
     this._confirmed[fromId]=msg.registers;
     // v6.9 FIX B1: salva deck/discard del guest in State.players
-    // così Execution.compute() avrà i dati corretti per la simulazione
     const gp=State.players[fromId];
     if(gp){
       if(msg.deck) gp.deck=msg.deck;
       if(msg.discard) gp.discard=msg.discard;
+      // v6.9 Power Down: propaga il flag
+      if(msg.powerDown){gp.powerDown=true;gp._wasPowerDown=true;}
     }
     const me=State.myPlayer();if(me?.confirmed)this._confirmed[State.myId]=me.registers;
     if(State.getPlayerList().map(p=>p.id).every(id=>this._confirmed[id])){
@@ -140,10 +171,9 @@ const Cards = {
   },
 
   updateOthersStatus(){
-    // v6.8.1: aggiorna le icone conferma dentro l'HUD (non più sezione separata)
     for(const p of State.getPlayerList()){
       const el=document.getElementById(`hud-conf-${p.id}`);
-      if(el) el.textContent=p.confirmed?'✅':'⏳';
+      if(el) el.textContent=p.powerDown?'⚡':p.confirmed?'✅':'⏳';
     }
   },
 
