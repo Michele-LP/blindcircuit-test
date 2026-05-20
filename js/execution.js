@@ -244,7 +244,7 @@ const Execution = (() => {
     // v6.9 FIX conveyor turns — 3 regole:
     // 1) Rotazione basata sulla DESTINAZIONE (dove il robot è finito)
     // 2) Solo se arriva da un nastro dello STESSO tipo (singolo→singolo, doppio→doppio)
-    // 3) Direzione corretta: OPP[from] è la direzione di viaggio del robot
+    // 3) ROT_R[from]===to per coerenza con le immagini dei nastri
     const rotateActions = [];
     for (const [id, m] of intended) {
       if (!m) continue;
@@ -266,15 +266,13 @@ const Execution = (() => {
         : _isBeltOfType(originCell.type, 'conveyor');
       if (!sameType) continue;
 
-      // Direzione corretta: il robot viaggiava in OPP[from]
-      const entryDir = OPP[destCell.from];
-      const isRight = ROT_R[entryDir] === destCell.to;
+      const isRight = ROT_R[destCell.from] === destCell.to;
       s.dir = isRight ? rotRight(s.dir) : rotLeft(s.dir);
       rotateActions.push({ type: 'rotate', id, dir: s.dir });
     }
 
-    // Regola: prima rotazione, poi spostamento
-    actions.push(...rotateActions, ...moveActions);
+    // Ordine animazione: prima il robot si muove sulla curva, poi ruota
+    actions.push(...moveActions, ...rotateActions);
     return actions;
   }
   function applyPushPanels(sim,regIndex){
@@ -588,71 +586,74 @@ const Execution = (() => {
       const plan=[],prevCard={},order=turnOrder();
       let winner=null;
 
-      for (let reg=0;reg<CONFIG.registersCount;reg++){
-        const ra=[];
+      // v6.9: ogni giocatore esegue TUTTI i suoi registri prima di passare al successivo
+      for (const id of order) {
+        if (winner) break;
+        for (let reg=0;reg<CONFIG.registersCount;reg++){
+          const ra=[];
 
-        // ── Carte ──────────────────────────────────────────────────────────
-        for (const id of order){
-          if (sim[id].rebooting) continue;   // REBOOT: salta tutti i registri rimanenti
-          const card=sim[id]?.registers[reg];
-          if (!card) continue;
-          // Log: quale carta viene giocata
-          if (typeof card==='string' && card.startsWith('worm_')){
-            const wd=(typeof RULES!=='undefined'?RULES?.worms:null)?.find(w=>w.id===card);
-            ra.push({type:'card_played',id,cardName:wd?.name??card,isWorm:true});
-            ra.push(...execWorm(simShared,sim,id,reg,card));
-          } else {
-            const def=CONFIG.cards.find(c=>c.id===card);
-            ra.push({type:'card_played',id,cardName:def?.name??card});
-            ra.push(...execCard(sim,id,card,prevCard[id]));
-            if(card!=='again')prevCard[id]=card;
+          // ── Carta del giocatore corrente ──────────────────────────────────
+          if (!sim[id].rebooting) {
+            const card=sim[id]?.registers[reg];
+            if (card) {
+              if (typeof card==='string' && card.startsWith('worm_')){
+                const wd=(typeof RULES!=='undefined'?RULES?.worms:null)?.find(w=>w.id===card);
+                ra.push({type:'card_played',id,cardName:wd?.name??card,isWorm:true});
+                ra.push(...execWorm(simShared,sim,id,reg,card));
+              } else {
+                const def=CONFIG.cards.find(c=>c.id===card);
+                ra.push({type:'card_played',id,cardName:def?.name??card});
+                ra.push(...execCard(sim,id,card,prevCard[id]));
+                if(card!=='again')prevCard[id]=card;
+              }
+            }
           }
-        }
 
-        // ── Elementi del tabellone (con markers per il log) ──────────────
-        const conv1=applyConveyors(sim,'express_conveyor');
-        const conv2=applyConveyors(sim,'express_conveyor');
-        if(conv1.length||conv2.length) ra.push({type:'phase_marker',name:'Nastri express'});
-        ra.push(...conv1,...conv2);
+          // ── Elementi del tabellone (dopo ogni registro, per TUTTI) ────────
+          const conv1=applyConveyors(sim,'express_conveyor');
+          const conv2=applyConveyors(sim,'express_conveyor');
+          if(conv1.length||conv2.length) ra.push({type:'phase_marker',name:'Nastri express'});
+          ra.push(...conv1,...conv2);
 
-        const conv3=applyConveyors(sim,'conveyor');
-        if(conv3.length) ra.push({type:'phase_marker',name:'Nastri normali'});
-        ra.push(...conv3);
+          const conv3=applyConveyors(sim,'conveyor');
+          if(conv3.length) ra.push({type:'phase_marker',name:'Nastri normali'});
+          ra.push(...conv3);
 
-        const pp=applyPushPanels(sim,reg);
-        if(pp.length) ra.push({type:'phase_marker',name:'Push panel'});
-        ra.push(...pp);
+          const pp=applyPushPanels(sim,reg);
+          if(pp.length) ra.push({type:'phase_marker',name:'Push panel'});
+          ra.push(...pp);
 
-        const gears=applyGears(sim);
-        if(gears.length) ra.push({type:'phase_marker',name:'Ingranaggi'});
-        ra.push(...gears);
+          const gears=applyGears(sim);
+          if(gears.length) ra.push({type:'phase_marker',name:'Ingranaggi'});
+          ra.push(...gears);
 
-        const bl=fireLasers(simShared,sim,reg);
-        if(bl.length) ra.push({type:'phase_marker',name:'Laser bordo'});
-        ra.push(...bl);
+          const bl=fireLasers(simShared,sim,reg);
+          if(bl.length) ra.push({type:'phase_marker',name:'Laser bordo'});
+          ra.push(...bl);
 
-        const rl=fireRobotWeapons(simShared,sim,reg);
-        if(rl.length) ra.push({type:'phase_marker',name:'Laser robot'});
-        ra.push(...rl);
+          const rl=fireRobotWeapons(simShared,sim,reg);
+          if(rl.length) ra.push({type:'phase_marker',name:'Laser robot'});
+          ra.push(...rl);
 
-        // ── Batterie + Checkpoint ────────────────────────────────────────
-        for (const id of order){
-          const s=sim[id];
-          if (s.rebooting) continue;   // v6.9: skip robot in reboot
-          if(Board.cellType(s.cx,s.cy)==='recharge'){
-            s.energy=Math.min((s.energy??0)+CONFIG.rechargeAmount,CONFIG.maxEnergy);
-            ra.push({type:'energy',id,energy:s.energy});
+          // ── Batterie + Checkpoint ────────────────────────────────────────
+          for (const pid of order){
+            const s=sim[pid];
+            if (s.rebooting) continue;
+            if(Board.cellType(s.cx,s.cy)==='recharge'){
+              s.energy=Math.min((s.energy??0)+CONFIG.rechargeAmount,CONFIG.maxEnergy);
+              ra.push({type:'energy',id:pid,energy:s.energy});
+            }
           }
-        }
-        for (const id of order){
-          if (sim[id].rebooting) continue;   // v6.9: skip robot in reboot
-          const cp=checkCheckpoint(sim[id]);
-          if(!cp) continue; ra.push(cp);
-          if(cp.won) winner=id;
-        }
+          for (const pid of order){
+            if (sim[pid].rebooting) continue;
+            const cp=checkCheckpoint(sim[pid]);
+            if(!cp) continue; ra.push(cp);
+            if(cp.won) winner=pid;
+          }
 
-        plan.push(ra);
-        if(winner) break;
+          plan.push(ra);
+          if(winner) break;
+        }
       }
 
       // Sync finale

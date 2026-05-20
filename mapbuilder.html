@@ -166,7 +166,10 @@ const RR={N:'E',E:'S',S:'W',W:'N'},RL={N:'W',W:'S',S:'E',E:'N'};
 const CC={floor:'transparent',pit:'#080c10',conveyor:'#1e293b',express_conveyor:'#2a1d00',conveyor_turn:'#1e293b',gear_cw:'#1a1f2e',gear_ccw:'#1a1f2e',recharge:'#0b1a10',push_panel:'#0d1a2a'};
 function cti(f,t){return{isRight:RR[f]===t,rotRad:DR[f]??0};}
 function fromTo(out,side){return side==='right'?{from:OPP[RL[out]],to:out}:{from:OPP[RR[out]],to:out};}
-function detectSide(f,t){return RR[OPP[f]]===t?'right':'left';}
+function detectSide(f,t){
+  // FIX: RR[OPP[f]]===t è il senso "immagine" (coerente con cti), che ora mappiamo come il label utente
+  return RR[f]===t?'right':'left';
+}
 const TP={
   floor_a:'assets/tiles/pavement_A.png',
   floor_b:'assets/tiles/pavement_B.png',
@@ -307,7 +310,8 @@ const E={
     const c={};
     if(['turn_r','turn_l','eturn_r','eturn_l'].includes(tid)){
       c.type='conveyor_turn';c.express=tid.startsWith('e');
-      const side=tid.endsWith('_r')?'right':'left';
+      // FIX: swap side mapping per allineare immagine + rotazione + label
+      const side=tid.endsWith('_r')?'left':'right';
       const ft=fromTo(this.brushDir,side);c.from=ft.from;c.to=ft.to;return c;
     }
     c.type=tid;
@@ -380,8 +384,10 @@ const E={
       this._showProps();this.render();
     }));
     document.querySelectorAll('.turn-btn[data-turn]').forEach(b=>b.addEventListener('click',()=>{
-      const cell=this.cells[key];if(!cell)return;const ns=b.dataset.turn;
-      const ft=fromTo(cell.to,ns);cell.from=ft.from;cell.to=ft.to;this.brushTurnSide=ns;
+      const cell=this.cells[key];if(!cell)return;
+      // FIX: swap interno per coerenza con immagini (DX nel pannello = 'left' per fromTo)
+      const ns=b.dataset.turn==='right'?'left':'right';
+      const ft=fromTo(cell.to,ns);cell.from=ft.from;cell.to=ft.to;
       this._showProps();this.render();
     }));
     document.querySelector('[data-action="sp1"]')?.addEventListener('click',()=>{const c=this.cells[key];if(c)c.express=false;this._showProps();this.render();});
@@ -491,10 +497,10 @@ const E={
     // 1. Express conveyors (2 steps)
     for(let step=0;step<2;step++){
       const r=this._testBeltMove('express');
-      if(r){moved=true;if(step===0)this._tlog('Nastro 2x: '+r);}
+      if(r){moved=true;this._tlog('Nastro 2x (passo '+(step+1)+'): '+r);}
     }
-    // 2. All conveyors (1 step)
-    {const r=this._testBeltMove('all');if(r){moved=true;this._tlog('Nastro: '+r);}}
+    // 2. Normal conveyors only (1 step) — express NON si muovono di nuovo
+    {const r=this._testBeltMove('normal');if(r){moved=true;this._tlog('Nastro 1x: '+r);}}
     // 3. Gears
     const cell=this.cells[`${this.testX},${this.testY}`];
     if(cell?.type==='gear_cw'){this.testDir=RR[this.testDir];this._tlog('Ingranaggio ↻ → '+DA[this.testDir]);moved=true;}
@@ -529,12 +535,13 @@ const E={
   },
   _testBeltMove(mode){
     const key=`${this.testX},${this.testY}`,cell=this.cells[key];if(!cell)return null;
-    const isBelt=(t,c)=>['conveyor','express_conveyor'].includes(t)||(t==='conveyor_turn');
-    const isExpress=(t,c)=>t==='express_conveyor'||(t==='conveyor_turn'&&c?.express);
-    const isNormal=(t,c)=>t==='conveyor'||(t==='conveyor_turn'&&!c?.express);
+    const isExpressCell=(t,c)=>t==='express_conveyor'||(t==='conveyor_turn'&&c?.express);
+    const isNormalCell=(t,c)=>t==='conveyor'||(t==='conveyor_turn'&&!c?.express);
     if(!['conveyor','express_conveyor','conveyor_turn'].includes(cell.type))return null;
-    const cellIsExpress=isExpress(cell.type,cell);
-    if(mode==='express'&&!cellIsExpress)return null;
+    const cellExpress=isExpressCell(cell.type,cell);
+    // mode='express': solo nastri express. mode='normal': solo nastri normali
+    if(mode==='express'&&!cellExpress)return null;
+    if(mode==='normal'&&cellExpress)return null;
     const isTurn=cell.type==='conveyor_turn';
     const dir=isTurn?cell.to:cell.dir;if(!dir)return null;
     if(this._testWallBlocks(this.testX,this.testY,dir))return 'bloccato da muro';
@@ -544,26 +551,22 @@ const E={
     const origX=this.testX,origY=this.testY;
     this.testX=nx;this.testY=ny;
     let msg='mosso '+DA[dir]+' → ('+(nx+1)+','+(ny+1)+')';
-    // Destination-based rotation + same-type check
+    // Destination-based rotation + same-type check + ROT_R[from]===to (coerente con immagini)
     const destKey=`${nx},${ny}`,destCell=this.cells[destKey];
     if(destCell?.type==='conveyor_turn'){
-      // Same type check: origine e destinazione devono essere dello stesso tipo
-      const destIsExpress=destCell.express;
+      const destExpress=destCell.express;
       const origCell=this.cells[`${origX},${origY}`];
-      const origIsExpress=isExpress(origCell?.type,origCell);
-      const origIsNormal=isNormal(origCell?.type,origCell);
-      const sameType=(destIsExpress&&origIsExpress)||(!destIsExpress&&origIsNormal);
+      const origExpress=isExpressCell(origCell?.type,origCell);
+      const origNormal=isNormalCell(origCell?.type,origCell);
+      const sameType=(destExpress&&origExpress)||(!destExpress&&origNormal);
       if(sameType){
-        // FIX direzione: OPP[from] = direzione di viaggio
-        const entryDir=OPP[destCell.from];
-        const isRight=RR[entryDir]===destCell.to;
+        const isRight=RR[destCell.from]===destCell.to;
         this.testDir=isRight?RR[this.testDir]:RL[this.testDir];
         msg+=' + ruotato '+(isRight?'DX':'SX')+' → '+DA[this.testDir];
       } else {
         msg+=' (tipo diverso, no rotazione)';
       }
     }
-    // Pit?
     if(destCell?.type==='pit'){msg+=' → 💀 BUCO!';this.testX=-1;this.testY=-1;}
     return msg;
   },
